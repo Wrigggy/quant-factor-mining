@@ -12,12 +12,24 @@ A comprehensive quantitative investment framework for US and Hong Kong stock mar
 
 ## 特性 (Features)
 
+### 核心功能
 - ✅ **数据基础设施**：yfinance API集成，速率限制，Parquet缓存
 - ✅ **数据质量控制**：复权处理、异常值检测、缺失值处理、Winsorize
-- ✅ **模块化因子系统**：统一的因子基类，易于扩展
+- ✅ **模块化因子系统**：统一的因子基类，易于扩展（12个因子实现）
 - ✅ **业界标准评估**：Alphalens集成，IC分析，分位数收益
 - ✅ **凸优化器**：CVXPY实现，多种协方差估计方法
 - ✅ **完整回测**：交易成本、换手率、绩效指标
+
+### 🆕 自适应功能（v1.0）
+- ✅ **IC加权动态因子组合**：自动调整因子权重，基于滚动IC表现
+- ✅ **市场状态检测**：识别趋势市/均值回归市/高波动市，自适应调整策略
+- ✅ **避免前视偏差**：延迟IC更新机制，确保无lookahead bias
+- ✅ **权重演化追踪**：可视化因子权重随时间的变化
+
+### 🚧 即将发布
+- 🚧 **参数优化框架**：网格搜索、贝叶斯优化、Walk-forward分析
+- 🚧 **机器学习集成**：XGBoost/LightGBM非线性因子组合
+- 🚧 **性能跟踪系统**：SQLite数据库，自动监控因子衰减
 
 ## 项目结构
 
@@ -38,7 +50,8 @@ quant-factor-mining/
 │   │   ├── momentum.py       # 动量因子
 │   │   ├── mean_reversion.py # 均值回归因子
 │   │   ├── volatility.py     # 波动率因子
-│   │   └── composite.py      # 多因子组合
+│   │   ├── composite.py      # 多因子组合
+│   │   └── adaptive_composite.py  # 🆕 自适应因子组合
 │   │
 │   ├── evaluation/            # 因子评估模块
 │   │   ├── alphalens_wrapper.py  # Alphalens集成
@@ -80,6 +93,9 @@ python demo.py
 
 # 测试所有模块
 python test_system.py
+
+# 🆕 测试自适应因子系统（推荐）
+python examples/demo_adaptive_composite.py
 ```
 
 ### 3. Jupyter研究环境
