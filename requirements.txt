@@ -1,0 +1,33 @@
+# Core data science
+pandas==2.2.0
+numpy==1.26.4
+scipy==1.12.0
+
+# Data acquisition
+yfinance==0.2.36
+
+# Factor analysis
+alphalens-reloaded==0.4.3
+
+# Portfolio optimization
+cvxpy==1.4.2
+scikit-learn==1.4.0
+
+# Visualization
+matplotlib==3.8.2
+seaborn==0.13.1
+
+# Utilities
+loguru==0.7.2
+python-dotenv==1.0.0
+tqdm==4.66.1
+
+# Jupyter
+jupyterlab==4.1.0
+ipywidgets==8.1.1
+
+# Testing
+pytest==8.0.0
+
+# Parquet acceleration
+pyarrow==15.0.0
