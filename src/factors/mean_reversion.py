@@ -1,10 +1,10 @@
 """
-均值回归因子 (Mean Reversion Factor)
+Mean Reversion Factor
 
-学术依据：Jegadeesh (1990)
+Academic Reference: Jegadeesh (1990)
 "Evidence of Predictable Behavior of Security Returns"
 
-核心发现：短期（1个月）存在反转效应，过去的输家会跑赢赢家
+Key Finding: Short-term (1-month) reversal effect exists, past losers outperform winners
 """
 
 import pandas as pd
@@ -17,14 +17,14 @@ from config.settings import MEAN_REVERSION_LOOKBACK
 
 class MeanReversionFactor(BaseFactor):
     """
-    均值回归因子（短期反转）
+    Mean Reversion Factor (Short-term Reversal)
 
-    公式：MeanReversion(t) = -1 × [(P(t) / P(t-lookback)) - 1]
+    Formula: MeanReversion(t) = -1 × [(P(t) / P(t-lookback)) - 1]
 
-    其中：
-    - P(t) = t时刻的复权收盘价
-    - lookback = 回看期（默认21天=1个月）
-    - 负号：买入跌幅大的股票（contrarian策略）
+    Where:
+    - P(t) = adjusted close price at time t
+    - lookback = lookback period (default 21 days = 1 month)
+    - negative sign: buy stocks with large declines (contrarian strategy)
     """
 
     def __init__(
@@ -36,9 +36,9 @@ class MeanReversionFactor(BaseFactor):
         Parameters
         ----------
         lookback : int
-            回看期（交易日），默认21天（1个月）
+            Lookback period (trading days), default 21 days (1 month)
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.lookback = lookback
@@ -47,41 +47,38 @@ class MeanReversionFactor(BaseFactor):
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         """
-        计算均值回归因子值
+        Calculate mean reversion factor values
 
         Parameters
         ----------
         data : pd.DataFrame
-            输入数据，MultiIndex (date, ticker)，包含'close'列
+            Input data, MultiIndex (date, ticker), contains 'close' column
 
         Returns
         -------
         pd.Series
-            均值回归因子值，MultiIndex (date, ticker)
+            Mean reversion factor values, MultiIndex (date, ticker)
         """
+        self._validate_data(data)
         logger.info(f"Calculating {self.name} factor...")
 
-        # 转换为pivot格式 (date × ticker)
-        close = data['close'].unstack(level='ticker')
+        close = self._unstack_close(data)
 
-        # 计算短期收益率
+        # Calculate short-term returns
         short_term_return = (close / close.shift(self.lookback)) - 1
 
-        # 反转：负号表示买入跌幅大的股票
+        # Reversal: negative sign means buying stocks with large declines
         reversal = -1 * short_term_return
 
-        # 转换回MultiIndex格式
-        reversal = reversal.stack(dropna=False)
-
         logger.info(f"{self.name} calculation complete")
-        return reversal
+        return self._stack_result(reversal)
 
 
 class HighLowMeanReversionFactor(BaseFactor):
     """
-    基于最高最低价的均值回归因子
+    High-Low Mean Reversion Factor
 
-    衡量当前价格相对于过去N天最高/最低价的位置
+    Measures current price position relative to past N-day high/low prices
     """
 
     def __init__(
@@ -93,9 +90,9 @@ class HighLowMeanReversionFactor(BaseFactor):
         Parameters
         ----------
         lookback : int
-            回看期
+            Lookback period
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.lookback = lookback
@@ -104,41 +101,40 @@ class HighLowMeanReversionFactor(BaseFactor):
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         """
-        计算基于High/Low的均值回归因子
+        Calculate High/Low-based mean reversion factor
 
-        公式：(Close - Min) / (Max - Min) - 0.5
-        然后取负号表示反转
+        Formula: (Close - Min) / (Max - Min) - 0.5
+        Then apply negative sign for reversal
         """
+        self._validate_data(data, required=['close', 'high', 'low'])
         logger.info(f"Calculating {self.name} factor...")
 
-        close = data['close'].unstack(level='ticker')
+        close = self._unstack_close(data)
         high = data['high'].unstack(level='ticker')
         low = data['low'].unstack(level='ticker')
 
-        # 计算rolling最高和最低
+        # Calculate rolling high and low
         rolling_high = high.rolling(window=self.lookback).max()
         rolling_low = low.rolling(window=self.lookback).min()
 
-        # 当前价格在[min, max]区间的位置（0到1）
+        # Current price position in [min, max] range (0 to 1)
         position = (close - rolling_low) / (rolling_high - rolling_low + 1e-9)
 
-        # 中心化到[-0.5, 0.5]
+        # Center to [-0.5, 0.5]
         centered_position = position - 0.5
 
-        # 反转：价格越高（接近最高价），因子值越负，预期反转向下
+        # Reversal: higher price (near high) gives negative factor value, expecting downward reversal
         reversal = -1 * centered_position
 
-        reversal = reversal.stack(dropna=False)
-
         logger.info(f"{self.name} calculation complete")
-        return reversal
+        return self._stack_result(reversal)
 
 
 class RSIMeanReversionFactor(BaseFactor):
     """
-    基于RSI的均值回归因子
+    RSI-based Mean Reversion Factor
 
-    RSI (Relative Strength Index) 是经典的超买超卖指标
+    RSI (Relative Strength Index) is a classic overbought/oversold indicator
     """
 
     def __init__(
@@ -152,13 +148,13 @@ class RSIMeanReversionFactor(BaseFactor):
         Parameters
         ----------
         period : int
-            RSI计算周期，默认14天
+            RSI calculation period, default 14 days
         overbought : float
-            超买阈值，默认70
+            Overbought threshold, default 70
         oversold : float
-            超卖阈值，默认30
+            Oversold threshold, default 30
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.period = period
@@ -169,23 +165,23 @@ class RSIMeanReversionFactor(BaseFactor):
 
     def _calculate_rsi(self, close: pd.DataFrame) -> pd.DataFrame:
         """
-        计算RSI
+        Calculate RSI
 
         RSI = 100 - (100 / (1 + RS))
         RS = Average Gain / Average Loss
         """
-        # 计算价格变化
+        # Calculate price changes
         delta = close.diff()
 
-        # 分离涨跌
+        # Separate gains and losses
         gain = delta.clip(lower=0)
         loss = -delta.clip(upper=0)
 
-        # 计算平均涨跌（使用EWM，更符合RSI原始定义）
+        # Calculate average gains/losses (using EWM, more aligned with original RSI definition)
         avg_gain = gain.ewm(span=self.period, adjust=False).mean()
         avg_loss = loss.ewm(span=self.period, adjust=False).mean()
 
-        # 计算RS和RSI
+        # Calculate RS and RSI
         rs = avg_gain / (avg_loss + 1e-9)
         rsi = 100 - (100 / (1 + rs))
 
@@ -193,38 +189,32 @@ class RSIMeanReversionFactor(BaseFactor):
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         """
-        计算RSI均值回归因子
+        Calculate RSI mean reversion factor
 
-        超买（RSI > 70）：因子值为负，预期下跌
-        超卖（RSI < 30）：因子值为正，预期上涨
+        Overbought (RSI > 70): negative factor value, expecting decline
+        Oversold (RSI < 30): positive factor value, expecting rise
         """
+        self._validate_data(data)
         logger.info(f"Calculating {self.name} factor...")
 
-        close = data['close'].unstack(level='ticker')
+        close = self._unstack_close(data)
 
-        # 计算RSI
+        # Calculate RSI
         rsi = self._calculate_rsi(close)
 
-        # 转换为均值回归信号
-        # RSI中心化到50
+        # Convert to mean reversion signal
+        # Center RSI around 50
         reversal = 50 - rsi
 
-        # 可选：只在极端情况下产生信号
-        # reversal = reversal.apply(
-        #     lambda x: x if (x > (50 - self.oversold) or x < (self.overbought - 50)) else 0
-        # )
-
-        reversal = reversal.stack(dropna=False)
-
         logger.info(f"{self.name} calculation complete")
-        return reversal
+        return self._stack_result(reversal)
 
 
 class OvernightMeanReversionFactor(BaseFactor):
     """
-    隔夜均值回归因子
+    Overnight Mean Reversion Factor
 
-    利用隔夜收益（前日收盘到今日开盘）的反转效应
+    Exploits reversal effect of overnight returns (previous close to today's open)
     """
 
     def __init__(
@@ -236,9 +226,9 @@ class OvernightMeanReversionFactor(BaseFactor):
         Parameters
         ----------
         lookback : int
-            累积隔夜收益的天数
+            Number of days to accumulate overnight returns
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.lookback = lookback
@@ -247,29 +237,28 @@ class OvernightMeanReversionFactor(BaseFactor):
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         """
-        计算隔夜均值回归因子
+        Calculate overnight mean reversion factor
 
-        公式：累积隔夜收益的负值
-        隔夜收益 = Open(t) / Close(t-1) - 1
+        Formula: Negative of cumulative overnight returns
+        Overnight return = Open(t) / Close(t-1) - 1
         """
+        self._validate_data(data, required=['close', 'open'])
         logger.info(f"Calculating {self.name} factor...")
 
-        close = data['close'].unstack(level='ticker')
+        close = self._unstack_close(data)
         open_price = data['open'].unstack(level='ticker')
 
-        # 计算隔夜收益
+        # Calculate overnight returns
         overnight_return = (open_price / close.shift(1)) - 1
 
-        # 累积过去N天的隔夜收益
+        # Accumulate past N days of overnight returns
         cum_overnight = overnight_return.rolling(window=self.lookback).sum()
 
-        # 反转信号
+        # Reversal signal
         reversal = -1 * cum_overnight
 
-        reversal = reversal.stack(dropna=False)
-
         logger.info(f"{self.name} calculation complete")
-        return reversal
+        return self._stack_result(reversal)
 
 
 if __name__ == "__main__":

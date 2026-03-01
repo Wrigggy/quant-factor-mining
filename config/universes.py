@@ -1,15 +1,15 @@
 """
-股票池定义
-包含美股（S&P 500）和港股主板股票列表
+Stock Universe Definitions
+Contains US stocks (S&P 500) and Hong Kong main board stock lists
 """
 
 from typing import List, Dict
 import pandas as pd
 
-# ==================== 美股股票池 ====================
+# ==================== US Stock Universe ====================
 
-# S&P 500主要成分股（示例，实际应使用完整列表或动态获取）
-# 这里列出部分代表性股票，实际使用时应获取完整列表
+# S&P 500 major constituents (sample, should use complete list or dynamic fetch in production)
+# Listed here are some representative stocks, should obtain complete list in actual use
 SP500_SAMPLE = [
     # 科技
     "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "AVGO", "ORCL", "ADBE",
@@ -47,10 +47,10 @@ SP500_SAMPLE = [
     "TMUS", "VZ", "T", "DIS", "CMCSA", "NFLX", "CHTR", "EA", "TTWO", "LYV",
 ]
 
-# ==================== 港股股票池 ====================
+# ==================== Hong Kong Stock Universe ====================
 
-# 恒生指数主要成分股（示例）
-# 注意：港股代码格式为 "XXXX.HK"
+# Hang Seng Index major constituents (sample)
+# Note: Hong Kong stock codes are in format "XXXX.HK"
 HSI_SAMPLE = [
     # 科技
     "0700.HK",  # 腾讯控股
@@ -118,23 +118,23 @@ HSI_SAMPLE = [
     "9995.HK",  # 荣昌生物-B
 ]
 
-# ==================== 股票池获取函数 ====================
+# ==================== Stock Universe Retrieval Functions ====================
 
 def get_universe(market: str, universe_type: str = "full") -> List[str]:
     """
-    获取指定市场的股票池
+    Get stock universe for specified market
 
     Parameters
     ----------
     market : str
-        市场类型，可选 "US" 或 "HK"
+        Market type, options: "US" or "HK"
     universe_type : str
-        股票池类型，可选 "full" 或 "sample"
+        Universe type, options: "full" or "sample"
 
     Returns
     -------
     List[str]
-        股票代码列表
+        List of ticker symbols
 
     Examples
     --------
@@ -148,8 +148,8 @@ def get_universe(market: str, universe_type: str = "full") -> List[str]:
         if universe_type == "sample":
             return SP500_SAMPLE
         elif universe_type == "full":
-            # 实际应用中，应从标准数据源获取完整S&P 500列表
-            # 例如：从Wikipedia或使用专门的库
+            # In production, should fetch complete S&P 500 list from standard data source
+            # For example: from Wikipedia or using specialized libraries
             print("Warning: Using sample S&P 500 list. For production, fetch complete list.")
             return SP500_SAMPLE
     elif market.upper() == "HK":
@@ -164,12 +164,12 @@ def get_universe(market: str, universe_type: str = "full") -> List[str]:
 
 def get_sp500_full() -> List[str]:
     """
-    从Wikipedia动态获取完整S&P 500列表
+    Dynamically fetch complete S&P 500 list from Wikipedia
 
     Returns
     -------
     List[str]
-        S&P 500股票代码列表
+        S&P 500 ticker list
     """
     try:
         import pandas as pd
@@ -177,7 +177,7 @@ def get_sp500_full() -> List[str]:
         tables = pd.read_html(url)
         sp500_table = tables[0]
         tickers = sp500_table['Symbol'].tolist()
-        # 修正某些特殊字符
+        # Fix certain special characters
         tickers = [ticker.replace('.', '-') for ticker in tickers]
         print(f"Successfully fetched {len(tickers)} S&P 500 tickers from Wikipedia")
         return tickers
@@ -189,29 +189,29 @@ def get_sp500_full() -> List[str]:
 
 def get_universe_info() -> Dict[str, Dict]:
     """
-    获取所有股票池的信息
+    Get information for all stock universes
 
     Returns
     -------
     Dict[str, Dict]
-        股票池信息字典
+        Stock universe information dictionary
     """
     return {
         "US": {
             "name": "S&P 500",
             "sample_size": len(SP500_SAMPLE),
-            "description": "美国标普500指数成分股"
+            "description": "S&P 500 Index constituents"
         },
         "HK": {
             "name": "HSI Components",
             "sample_size": len(HSI_SAMPLE),
-            "description": "香港恒生指数成分股"
+            "description": "Hang Seng Index constituents"
         }
     }
 
 
 if __name__ == "__main__":
-    # 测试代码
+    # Test code
     print("=== Universe Information ===")
     info = get_universe_info()
     for market, details in info.items():

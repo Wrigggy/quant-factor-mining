@@ -1,6 +1,6 @@
 """
-全局配置文件
-定义数据路径、API限制、因子参数、优化参数等
+Global Configuration File
+Defines data paths, API limits, factor parameters, optimization parameters, etc.
 """
 
 import os
@@ -17,77 +17,77 @@ OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 ALPHALENS_DIR = OUTPUTS_DIR / "alphalens"
 BACKTESTS_DIR = OUTPUTS_DIR / "backtests"
 
-# 确保目录存在
+# Ensure directories exist
 for directory in [RAW_DATA_DIR, PROCESSED_DATA_DIR, FACTORS_DATA_DIR, ALPHALENS_DIR, BACKTESTS_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 # ==================== 数据获取配置 ====================
-# YFinance API限制
-YFINANCE_RATE_LIMIT = 2000  # 每小时请求数（保守估计）
-YFINANCE_BATCH_SIZE = 50    # 每批下载股票数
-YFINANCE_MAX_WORKERS = 5    # 并行下载线程数
-YFINANCE_RETRY_TIMES = 3    # 失败重试次数
-YFINANCE_RETRY_DELAY = 5    # 重试间隔（秒）
+# YFinance API limits
+YFINANCE_RATE_LIMIT = 2000  # Requests per hour (conservative estimate)
+YFINANCE_BATCH_SIZE = 50    # Stocks per batch download
+YFINANCE_MAX_WORKERS = 5    # Parallel download threads
+YFINANCE_RETRY_TIMES = 3    # Retry attempts on failure
+YFINANCE_RETRY_DELAY = 5    # Retry interval (seconds)
 
-# 数据时间范围
+# Data time range
 DEFAULT_START_DATE = "2018-01-01"
 DEFAULT_END_DATE = datetime.now().strftime("%Y-%m-%d")
 
-# 缓存配置
-CACHE_EXPIRY_DAYS = 7  # 缓存过期时间（天）
-CACHE_FORMAT = "parquet"  # 缓存格式
-CACHE_COMPRESSION = "snappy"  # 压缩算法
+# Cache configuration
+CACHE_EXPIRY_DAYS = 7  # Cache expiry time (days)
+CACHE_FORMAT = "parquet"  # Cache format
+CACHE_COMPRESSION = "snappy"  # Compression algorithm
 
 # ==================== 数据质量配置 ====================
-# 数据验证阈值
-MAX_MISSING_RATIO = 0.5  # 最大缺失值比例（50%）
-MAX_CONSECUTIVE_MISSING = 5  # 最大连续缺失天数
-MAX_SINGLE_DAY_RETURN = 1.0  # 最大单日收益率（100%）
+# Data validation thresholds
+MAX_MISSING_RATIO = 0.5  # Maximum missing value ratio (50%)
+MAX_CONSECUTIVE_MISSING = 5  # Maximum consecutive missing days
+MAX_SINGLE_DAY_RETURN = 1.0  # Maximum single day return (100%)
 
-# Winsorize参数
-WINSORIZE_LOWER = 0.01  # 1%分位数
-WINSORIZE_UPPER = 0.99  # 99%分位数
+# Winsorize parameters
+WINSORIZE_LOWER = 0.01  # 1% quantile
+WINSORIZE_UPPER = 0.99  # 99% quantile
 
 # ==================== 因子计算配置 ====================
-# 动量因子参数
-MOMENTUM_LOOKBACK = 252  # 12个月回看期（交易日）
-MOMENTUM_SKIP = 21       # 跳过最后1个月
+# Momentum factor parameters
+MOMENTUM_LOOKBACK = 252  # 12-month lookback period (trading days)
+MOMENTUM_SKIP = 21       # Skip last 1 month
 
-# 均值回归因子参数
-MEAN_REVERSION_LOOKBACK = 21  # 1个月回看期
+# Mean reversion factor parameters
+MEAN_REVERSION_LOOKBACK = 21  # 1-month lookback period
 
-# 波动率因子参数
-VOLATILITY_WINDOW = 63  # 3个月滚动窗口
-VOLATILITY_ANNUALIZE = True  # 是否年化
+# Volatility factor parameters
+VOLATILITY_WINDOW = 63  # 3-month rolling window
+VOLATILITY_ANNUALIZE = True  # Whether to annualize
 
-# 因子标准化方法
-FACTOR_NORMALIZATION_METHOD = "zscore"  # 可选: "zscore", "rank"
+# Factor normalization method
+FACTOR_NORMALIZATION_METHOD = "zscore"  # Options: "zscore", "rank"
 
 # ==================== Alphalens评估配置 ====================
-# 前瞻收益率周期（交易日）
-ALPHALENS_PERIODS = [1, 5, 21]  # 1天、5天、21天
+# Forward return periods (trading days)
+ALPHALENS_PERIODS = [1, 5, 21]  # 1 day, 5 days, 21 days
 
-# 分位数数量
+# Number of quantiles
 ALPHALENS_QUANTILES = 5
 
-# IC显著性阈值
-IC_SIGNIFICANCE_THRESHOLD = 0.02  # IC均值阈值
-IC_TSTAT_THRESHOLD = 2.0          # t统计量阈值
-IC_CONSISTENCY_THRESHOLD = 0.6    # IC一致性阈值（正值月份占比）
+# IC significance thresholds
+IC_SIGNIFICANCE_THRESHOLD = 0.02  # IC mean threshold
+IC_TSTAT_THRESHOLD = 2.0          # t-statistic threshold
+IC_CONSISTENCY_THRESHOLD = 0.6    # IC consistency threshold (positive month ratio)
 
 # ==================== 组合优化配置 ====================
-# 优化参数
-RISK_AVERSION = 1.0  # 风险厌恶系数
-MAX_POSITION_SIZE = 0.05  # 单只股票最大持仓比例（5%）
-TURNOVER_LIMIT = 0.5  # 月度换手率上限（50%）
-LONG_ONLY = True  # 仅多头策略
+# Optimization parameters
+RISK_AVERSION = 1.0  # Risk aversion coefficient
+MAX_POSITION_SIZE = 0.05  # Maximum position size per stock (5%)
+TURNOVER_LIMIT = 0.5  # Monthly turnover limit (50%)
+LONG_ONLY = True  # Long-only strategy
 
-# 协方差矩阵估计
-COV_ESTIMATION_METHOD = "ledoit_wolf"  # 可选: "sample", "ledoit_wolf", "factor_model"
-COV_ESTIMATION_WINDOW = 252  # 协方差估计窗口（1年）
+# Covariance matrix estimation
+COV_ESTIMATION_METHOD = "ledoit_wolf"  # Options: "sample", "ledoit_wolf", "factor_model"
+COV_ESTIMATION_WINDOW = 252  # Covariance estimation window (1 year)
 
 # ==================== 回测配置 ====================
-# 回测参数
+# Backtest parameters
 INITIAL_CAPITAL = 1_000_000  # 初始资金（$1M）
 TRANSACTION_COST = 0.001     # 交易成本（10 bps 单边）
 REBALANCE_FREQUENCY = 21     # 调仓频率（月度，21个交易日）

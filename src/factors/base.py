@@ -1,6 +1,6 @@
 """
-因子基类
-定义统一的因子接口和标准化方法
+Factor Base Class
+Defines unified factor interface and standardization methods
 """
 
 from abc import ABC, abstractmethod
@@ -14,9 +14,9 @@ from config.settings import FACTOR_NORMALIZATION_METHOD
 
 class BaseFactor(ABC):
     """
-    Alpha因子抽象基类
+    Alpha Factor Abstract Base Class
 
-    所有具体因子都应继承此类并实现calculate方法
+    All concrete factors should inherit this class and implement the calculate method
     """
 
     def __init__(self, name: Optional[str] = None):
@@ -24,25 +24,60 @@ class BaseFactor(ABC):
         Parameters
         ----------
         name : str, optional
-            因子名称，默认使用类名
+            Factor name, defaults to class name
         """
         self.name = name or self.__class__.__name__
         logger.info(f"Initialized factor: {self.name}")
 
-    @abstractmethod
-    def calculate(self, data: pd.DataFrame) -> pd.Series:
+    def _validate_data(self, data: pd.DataFrame, required: list = None) -> None:
         """
-        计算因子值
+        Validate input data structure and required columns.
 
         Parameters
         ----------
         data : pd.DataFrame
-            输入数据，MultiIndex (date, ticker)，包含OHLCV列
+            Input data to validate
+        required : list, optional
+            Required column names, defaults to ['close']
+
+        Raises
+        ------
+        ValueError
+            If data is missing required columns or does not have a MultiIndex
+        """
+        if not isinstance(data.index, pd.MultiIndex):
+            raise ValueError(f"{self.name}: data must have MultiIndex (date, ticker)")
+        cols = required or ['close']
+        missing = [c for c in cols if c not in data.columns]
+        if missing:
+            raise ValueError(f"{self.name}: missing required columns {missing}")
+
+    def _unstack_close(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Unstack 'close' column from MultiIndex into date × ticker DataFrame."""
+        return data['close'].unstack(level='ticker')
+
+    def _stack_result(self, df: pd.DataFrame) -> pd.Series:
+        """Stack date × ticker DataFrame back to MultiIndex Series, named after the factor."""
+        return df.stack(dropna=False).rename(self.name)
+
+    def _annualize_vol(self, daily_vol, periods: int = 252):
+        """Annualize daily volatility by multiplying by sqrt(periods)."""
+        return daily_vol * np.sqrt(periods)
+
+    @abstractmethod
+    def calculate(self, data: pd.DataFrame) -> pd.Series:
+        """
+        Calculate factor values
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Input data, MultiIndex (date, ticker), contains OHLCV columns
 
         Returns
         -------
         pd.Series
-            因子值，MultiIndex (date, ticker)
+            Factor values, MultiIndex (date, ticker)
         """
         pass
 
@@ -53,43 +88,43 @@ class BaseFactor(ABC):
         clip_std: Optional[float] = None
     ) -> pd.Series:
         """
-        因子标准化（截面标准化）
+        Factor normalization (cross-sectional normalization)
 
         Parameters
         ----------
         factor_values : pd.Series
-            原始因子值，MultiIndex (date, ticker)
+            Raw factor values, MultiIndex (date, ticker)
         method : str
-            标准化方法：
-            - 'zscore': Z-Score标准化（截面）
-            - 'rank': 百分位排名
-            - 'minmax': 最小-最大标准化
+            Normalization method:
+            - 'zscore': Z-Score normalization (cross-sectional)
+            - 'rank': Percentile ranking
+            - 'minmax': Min-Max normalization
         clip_std : float, optional
-            截断标准差倍数（例如3表示[-3σ, 3σ]）
+            Clip standard deviation multiples (e.g., 3 means [-3σ, 3σ])
 
         Returns
         -------
         pd.Series
-            标准化后的因子值
+            Normalized factor values
         """
         logger.debug(f"Normalizing factor with method: {method}")
 
         if method == "zscore":
-            # 截面Z-Score标准化
+            # Cross-sectional Z-Score normalization
             normalized = factor_values.groupby(level='date').apply(
                 lambda x: (x - x.mean()) / (x.std() + 1e-9)
             )
 
-            # 可选：截断极端值
+            # Optional: clip extreme values
             if clip_std is not None:
                 normalized = normalized.clip(-clip_std, clip_std)
 
         elif method == "rank":
-            # 截面百分位排名
+            # Cross-sectional percentile ranking
             normalized = factor_values.groupby(level='date').rank(pct=True)
 
         elif method == "minmax":
-            # 截面Min-Max标准化到[0, 1]
+            # Cross-sectional Min-Max normalization to [0, 1]
             normalized = factor_values.groupby(level='date').apply(
                 lambda x: (x - x.min()) / (x.max() - x.min() + 1e-9)
             )
@@ -106,38 +141,38 @@ class BaseFactor(ABC):
         market_cap: Optional[pd.Series] = None
     ) -> pd.Series:
         """
-        因子中性化（去除行业和市值暴露）
+        Factor neutralization (remove industry and market cap exposure)
 
         Parameters
         ----------
         factor_values : pd.Series
-            因子值
+            Factor values
         industry : pd.Series, optional
-            行业分类，MultiIndex (date, ticker)
+            Industry classification, MultiIndex (date, ticker)
         market_cap : pd.Series, optional
-            市值，MultiIndex (date, ticker)
+            Market capitalization, MultiIndex (date, ticker)
 
         Returns
         -------
         pd.Series
-            中性化后的因子值
+            Neutralized factor values
         """
         logger.debug("Neutralizing factor")
 
         neutralized = factor_values.copy()
 
-        # 按日期分组进行中性化
+        # Neutralize by date groups
         def neutralize_cross_section(df):
             from sklearn.linear_model import LinearRegression
 
             y = df['factor'].values.reshape(-1, 1)
             X = []
 
-            # 添加市值
+            # Add market cap
             if 'market_cap' in df.columns:
                 X.append(np.log(df['market_cap'].values + 1e-9).reshape(-1, 1))
 
-            # 添加行业哑变量
+            # Add industry dummies
             if 'industry' in df.columns:
                 industry_dummies = pd.get_dummies(df['industry'])
                 X.append(industry_dummies.values)
@@ -147,38 +182,38 @@ class BaseFactor(ABC):
 
             X = np.hstack(X)
 
-            # 回归并提取残差
+            # Regression and extract residuals
             model = LinearRegression()
             model.fit(X, y)
             residuals = y - model.predict(X)
 
             return pd.Series(residuals.flatten(), index=df.index)
 
-        # 构建DataFrame
+        # Build DataFrame
         df = pd.DataFrame({'factor': factor_values})
         if industry is not None:
             df['industry'] = industry
         if market_cap is not None:
             df['market_cap'] = market_cap
 
-        # 按日期分组中性化
+        # Neutralize by date groups
         neutralized = df.groupby(level='date').apply(neutralize_cross_section)
 
         return neutralized
 
     def validate(self, factor_values: pd.Series) -> dict:
         """
-        验证因子值的基本统计特性
+        Validate basic statistical properties of factor values
 
         Parameters
         ----------
         factor_values : pd.Series
-            因子值
+            Factor values
 
         Returns
         -------
         dict
-            验证报告
+            Validation report
         """
         report = {
             'total_values': len(factor_values),
@@ -212,46 +247,46 @@ class BaseFactor(ABC):
         market_cap: Optional[pd.Series] = None
     ) -> pd.Series:
         """
-        计算因子的完整流程
+        Complete factor computation pipeline
 
         Parameters
         ----------
         data : pd.DataFrame
-            输入数据
+            Input data
         normalize : bool
-            是否标准化
+            Whether to normalize
         normalization_method : str, optional
-            标准化方法，默认使用配置
+            Normalization method, defaults to config
         clip_std : float, optional
-            截断标准差倍数
+            Clip standard deviation multiples
         industry : pd.Series, optional
-            行业分类（用于中性化）
+            Industry classification (for neutralization)
         market_cap : pd.Series, optional
-            市值（用于中性化）
+            Market capitalization (for neutralization)
 
         Returns
         -------
         pd.Series
-            处理后的因子值
+            Processed factor values
         """
         logger.info(f"Computing factor: {self.name}")
 
-        # 1. 计算原始因子值
+        # 1. Calculate raw factor values
         factor_values = self.calculate(data)
 
-        # 2. 验证
+        # 2. Validate
         self.validate(factor_values)
 
-        # 3. 中性化（如果提供了行业或市值）
+        # 3. Neutralize (if industry or market cap provided)
         if industry is not None or market_cap is not None:
             factor_values = self.neutralize(factor_values, industry, market_cap)
 
-        # 4. 标准化
+        # 4. Normalize
         if normalize:
             method = normalization_method or FACTOR_NORMALIZATION_METHOD
             factor_values = self.normalize(factor_values, method, clip_std)
 
-        # 5. 删除NaN
+        # 5. Remove NaN
         initial_count = len(factor_values)
         factor_values = factor_values.dropna()
         dropped_count = initial_count - len(factor_values)
@@ -267,7 +302,7 @@ class BaseFactor(ABC):
 
 class CompositeFactor(BaseFactor):
     """
-    复合因子：多个因子的加权组合
+    Composite Factor: Weighted combination of multiple factors
     """
 
     def __init__(
@@ -280,11 +315,11 @@ class CompositeFactor(BaseFactor):
         Parameters
         ----------
         factors : List[BaseFactor]
-            因子列表
+            List of factors
         weights : List[float], optional
-            因子权重，默认等权
+            Factor weights, default equal weight
         name : str
-            复合因子名称
+            Composite factor name
         """
         super().__init__(name)
         self.factors = factors
@@ -302,28 +337,28 @@ class CompositeFactor(BaseFactor):
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         """
-        计算复合因子值（加权平均）
+        Calculate composite factor values (weighted average)
 
         Parameters
         ----------
         data : pd.DataFrame
-            输入数据
+            Input data
 
         Returns
         -------
         pd.Series
-            复合因子值
+            Composite factor values
         """
         factor_values_list = []
 
         for factor, weight in zip(self.factors, self.weights):
             logger.debug(f"Computing {factor.name} (weight: {weight})")
             values = factor.calculate(data)
-            # 标准化单个因子
+            # Normalize individual factor
             values = factor.normalize(values)
             factor_values_list.append(values * weight)
 
-        # 加权求和
+        # Weighted sum
         composite = pd.concat(factor_values_list, axis=1).sum(axis=1)
 
         logger.info(f"CompositeFactor computed from {len(self.factors)} factors")

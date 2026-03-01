@@ -1,10 +1,10 @@
 """
-动量因子 (Momentum Factor)
+Momentum Factor
 
-学术依据：Jegadeesh & Titman (1993)
+Academic Reference: Jegadeesh & Titman (1993)
 "Returns to Buying Winners and Selling Losers: Implications for Stock Market Efficiency"
 
-核心发现：过去12个月表现好的股票在未来3-12个月继续跑赢
+Key Finding: Stocks performing well in the past 12 months continue to outperform in the next 3-12 months
 """
 
 import pandas as pd
@@ -17,14 +17,14 @@ from config.settings import MOMENTUM_LOOKBACK, MOMENTUM_SKIP
 
 class MomentumFactor(BaseFactor):
     """
-    动量因子
+    Momentum Factor
 
-    公式：Momentum(t) = [P(t-skip) / P(t-lookback-skip)] - 1
+    Formula: Momentum(t) = [P(t-skip) / P(t-lookback-skip)] - 1
 
-    其中：
-    - P(t) = t时刻的复权收盘价
-    - lookback = 回看期（默认252天=12个月）
-    - skip = 跳过最后N天（默认21天=1个月），避免短期反转效应
+    Where:
+    - P(t) = adjusted close price at time t
+    - lookback = lookback period (default 252 days = 12 months)
+    - skip = skip last N days (default 21 days = 1 month), to avoid short-term reversal effect
     """
 
     def __init__(
@@ -37,11 +37,11 @@ class MomentumFactor(BaseFactor):
         Parameters
         ----------
         lookback : int
-            回看期（交易日），默认252天（12个月）
+            Lookback period (trading days), default 252 days (12 months)
         skip : int
-            跳过最后N天（交易日），默认21天（1个月）
+            Skip last N days (trading days), default 21 days (1 month)
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.lookback = lookback
@@ -51,44 +51,41 @@ class MomentumFactor(BaseFactor):
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         """
-        计算动量因子值
+        Calculate momentum factor values
 
         Parameters
         ----------
         data : pd.DataFrame
-            输入数据，MultiIndex (date, ticker)，包含'close'列
+            Input data, MultiIndex (date, ticker), contains 'close' column
 
         Returns
         -------
         pd.Series
-            动量因子值，MultiIndex (date, ticker)
+            Momentum factor values, MultiIndex (date, ticker)
         """
+        self._validate_data(data)
         logger.info(f"Calculating {self.name} factor...")
 
-        # 转换为pivot格式 (date × ticker)
-        close = data['close'].unstack(level='ticker')
+        close = self._unstack_close(data)
 
-        # 计算动量
-        # close_skip: t-skip时刻的价格
-        # close_lookback: t-lookback-skip时刻的价格
+        # Calculate momentum
+        # close_skip: price at t-skip
+        # close_lookback: price at t-lookback-skip
         close_skip = close.shift(self.skip)
         close_lookback = close.shift(self.lookback + self.skip)
 
-        # 计算收益率
+        # Calculate returns
         momentum = (close_skip / close_lookback) - 1
 
-        # 转换回MultiIndex格式
-        momentum = momentum.stack(dropna=False)
-
         logger.info(f"{self.name} calculation complete")
-        return momentum
+        return self._stack_result(momentum)
 
 
 class MultiPeriodMomentumFactor(BaseFactor):
     """
-    多周期动量因子
+    Multi-Period Momentum Factor
 
-    结合多个时间周期的动量信号
+    Combines momentum signals from multiple time periods
     """
 
     def __init__(
@@ -102,13 +99,13 @@ class MultiPeriodMomentumFactor(BaseFactor):
         Parameters
         ----------
         periods : list
-            多个回看周期（交易日）
+            Multiple lookback periods (trading days)
         weights : list, optional
-            各周期权重，默认等权
+            Weights for each period, default equal weight
         skip : int
-            跳过最后N天
+            Skip last N days
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.periods = periods
@@ -121,10 +118,11 @@ class MultiPeriodMomentumFactor(BaseFactor):
         logger.info(f"MultiPeriodMomentumFactor initialized: periods={periods}")
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
-        """计算多周期动量因子"""
+        """Calculate multi-period momentum factor"""
+        self._validate_data(data)
         logger.info(f"Calculating {self.name} factor...")
 
-        close = data['close'].unstack(level='ticker')
+        close = self._unstack_close(data)
         close_skip = close.shift(self.skip)
 
         momentum_list = []
@@ -134,20 +132,19 @@ class MultiPeriodMomentumFactor(BaseFactor):
             period_momentum = ((close_skip / close_lookback) - 1) * weight
             momentum_list.append(period_momentum)
 
-        # 加权平均
+        # Weighted average
         multi_momentum = sum(momentum_list)
-        multi_momentum = multi_momentum.stack(dropna=False)
 
         logger.info(f"{self.name} calculation complete")
-        return multi_momentum
+        return self._stack_result(multi_momentum)
 
 
 class ResidualMomentumFactor(BaseFactor):
     """
-    残差动量因子
+    Residual Momentum Factor
 
-    剔除市场和行业影响后的特质动量
-    需要市场收益率和行业分类数据
+    Idiosyncratic momentum after removing market and industry effects
+    Requires market returns and industry classification data
     """
 
     def __init__(
@@ -161,13 +158,13 @@ class ResidualMomentumFactor(BaseFactor):
         Parameters
         ----------
         lookback : int
-            回看期
+            Lookback period
         skip : int
-            跳过天数
+            Skip days
         market_returns : pd.Series
-            市场收益率（日期索引）
+            Market returns (date index)
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.lookback = lookback
@@ -177,32 +174,32 @@ class ResidualMomentumFactor(BaseFactor):
         logger.info(f"ResidualMomentumFactor initialized")
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
-        """计算残差动量因子"""
+        """Calculate residual momentum factor"""
+        self._validate_data(data)
         logger.info(f"Calculating {self.name} factor...")
 
-        close = data['close'].unstack(level='ticker')
+        close = self._unstack_close(data)
 
-        # 计算股票收益率
+        # Calculate stock returns
         returns = close.pct_change()
 
-        # 计算累积收益率
+        # Calculate cumulative returns
         cum_returns = (1 + returns).rolling(
             window=self.lookback,
             min_periods=self.lookback // 2
         ).apply(lambda x: x.prod()) - 1
 
-        # 如果提供了市场收益率，计算beta调整后的残差动量
+        # If market returns provided, calculate beta-adjusted residual momentum
         if self.market_returns is not None:
-            # 这里简化处理，实际应该按ticker回归计算beta和alpha
-            # 详细实现需要rolling regression
+            # Simplified here, should actually calculate beta and alpha per ticker via regression
+            # Detailed implementation requires rolling regression
             logger.warning("Market adjustment not fully implemented, using raw momentum")
 
-        # 跳过最后N天
+        # Skip last N days
         residual_momentum = cum_returns.shift(self.skip)
-        residual_momentum = residual_momentum.stack(dropna=False)
 
         logger.info(f"{self.name} calculation complete")
-        return residual_momentum
+        return self._stack_result(residual_momentum)
 
 
 if __name__ == "__main__":

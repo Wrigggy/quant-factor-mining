@@ -1,12 +1,12 @@
 """
-波动率因子 (Volatility Factor)
+Volatility Factor
 
-学术依据：Ang et al. (2006, 2009)
+Academic Reference: Ang et al. (2006, 2009)
 "The Cross-Section of Volatility and Expected Returns"
 "High Idiosyncratic Volatility and Low Returns"
 
-核心发现：低波动率股票违反CAPM预期，实际表现优于高波动率股票
-这被称为"低波动率异象" (Low Volatility Anomaly)
+Key Finding: Low volatility stocks violate CAPM expectations, actually outperform high volatility stocks
+This is called the "Low Volatility Anomaly"
 """
 
 import pandas as pd
@@ -19,15 +19,15 @@ from config.settings import VOLATILITY_WINDOW, VOLATILITY_ANNUALIZE
 
 class VolatilityFactor(BaseFactor):
     """
-    波动率因子（低波异象）
+    Volatility Factor (Low Volatility Anomaly)
 
-    公式：Volatility(t) = -1 × std(returns[t-window:t]) × √252
+    Formula: Volatility(t) = -1 × std(returns[t-window:t]) × √252
 
-    其中：
-    - returns = 对数收益率 log(P_t / P_{t-1})
-    - window = 滚动窗口（默认63天=3个月）
-    - √252 = 年化因子
-    - 负号：低波动率为正信号（买入低波动率股票）
+    Where:
+    - returns = log returns log(P_t / P_{t-1})
+    - window = rolling window (default 63 days = 3 months)
+    - √252 = annualization factor
+    - negative sign: low volatility is positive signal (buy low volatility stocks)
     """
 
     def __init__(
@@ -41,13 +41,13 @@ class VolatilityFactor(BaseFactor):
         Parameters
         ----------
         window : int
-            滚动窗口（交易日），默认63天（3个月）
+            Rolling window (trading days), default 63 days (3 months)
         annualize : bool
-            是否年化波动率
+            Whether to annualize volatility
         use_log_returns : bool
-            是否使用对数收益率
+            Whether to use log returns
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.window = window
@@ -58,51 +58,47 @@ class VolatilityFactor(BaseFactor):
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         """
-        计算波动率因子值
+        Calculate volatility factor values
 
         Parameters
         ----------
         data : pd.DataFrame
-            输入数据，MultiIndex (date, ticker)，包含'close'列
+            Input data, MultiIndex (date, ticker), contains 'close' column
 
         Returns
         -------
         pd.Series
-            波动率因子值，MultiIndex (date, ticker)
+            Volatility factor values, MultiIndex (date, ticker)
         """
+        self._validate_data(data)
         logger.info(f"Calculating {self.name} factor...")
 
-        # 转换为pivot格式 (date × ticker)
-        close = data['close'].unstack(level='ticker')
+        close = self._unstack_close(data)
 
-        # 计算收益率
+        # Calculate returns
         if self.use_log_returns:
             returns = np.log(close / close.shift(1))
         else:
             returns = close.pct_change()
 
-        # 计算滚动标准差
+        # Calculate rolling standard deviation
         volatility = returns.rolling(window=self.window, min_periods=self.window // 2).std()
 
-        # 年化
         if self.annualize:
-            volatility = volatility * np.sqrt(252)
+            volatility = self._annualize_vol(volatility)
 
-        # 低波异象：负号表示低波动率为正信号
+        # Low volatility anomaly: negative sign means low volatility is positive signal
         low_vol_factor = -1 * volatility
 
-        # 转换回MultiIndex格式
-        low_vol_factor = low_vol_factor.stack(dropna=False)
-
         logger.info(f"{self.name} calculation complete")
-        return low_vol_factor
+        return self._stack_result(low_vol_factor)
 
 
 class DownsideVolatilityFactor(BaseFactor):
     """
-    下行波动率因子
+    Downside Volatility Factor
 
-    只考虑负收益的波动率，对下行风险更敏感
+    Only considers volatility of negative returns, more sensitive to downside risk
     """
 
     def __init__(
@@ -116,13 +112,13 @@ class DownsideVolatilityFactor(BaseFactor):
         Parameters
         ----------
         window : int
-            滚动窗口
+            Rolling window
         annualize : bool
-            是否年化
+            Whether to annualize
         threshold : float
-            最小可接受收益率（MAR），默认0
+            Minimum acceptable return (MAR), default 0
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.window = window
@@ -133,42 +129,40 @@ class DownsideVolatilityFactor(BaseFactor):
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         """
-        计算下行波动率因子
+        Calculate downside volatility factor
 
-        公式：sqrt(mean(min(0, returns - threshold)^2))
+        Formula: sqrt(mean(min(0, returns - threshold)^2))
         """
+        self._validate_data(data)
         logger.info(f"Calculating {self.name} factor...")
 
-        close = data['close'].unstack(level='ticker')
+        close = self._unstack_close(data)
         returns = np.log(close / close.shift(1))
 
-        # 只保留低于阈值的收益
+        # Only keep returns below threshold
         downside_returns = returns.apply(lambda x: np.where(x < self.threshold, x - self.threshold, 0))
 
-        # 计算下行标准差
+        # Calculate downside standard deviation
         downside_vol = downside_returns.rolling(
             window=self.window,
             min_periods=self.window // 2
         ).apply(lambda x: np.sqrt(np.mean(x**2)))
 
-        # 年化
         if self.annualize:
-            downside_vol = downside_vol * np.sqrt(252)
+            downside_vol = self._annualize_vol(downside_vol)
 
-        # 低下行波动率为正信号
+        # Low downside volatility is positive signal
         low_downside_factor = -1 * downside_vol
 
-        low_downside_factor = low_downside_factor.stack(dropna=False)
-
         logger.info(f"{self.name} calculation complete")
-        return low_downside_factor
+        return self._stack_result(low_downside_factor)
 
 
 class IdiosyncraticVolatilityFactor(BaseFactor):
     """
-    特质波动率因子
+    Idiosyncratic Volatility Factor
 
-    剔除市场和行业因素后的残差波动率
+    Residual volatility after removing market and industry factors
     """
 
     def __init__(
@@ -182,13 +176,13 @@ class IdiosyncraticVolatilityFactor(BaseFactor):
         Parameters
         ----------
         window : int
-            滚动窗口
+            Rolling window
         market_returns : pd.Series
-            市场收益率（日期索引）
+            Market returns (date index)
         annualize : bool
-            是否年化
+            Whether to annualize
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.window = window
@@ -199,66 +193,53 @@ class IdiosyncraticVolatilityFactor(BaseFactor):
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         """
-        计算特质波动率因子
+        Calculate idiosyncratic volatility factor
 
-        使用rolling regression计算残差，然后计算残差的标准差
+        Uses rolling regression to calculate residuals, then calculates standard deviation of residuals
         """
+        self._validate_data(data)
         logger.info(f"Calculating {self.name} factor...")
 
-        close = data['close'].unstack(level='ticker')
+        close = self._unstack_close(data)
         returns = np.log(close / close.shift(1))
 
         if self.market_returns is None:
-            # 如果没有提供市场收益，使用等权平均作为市场代理
+            # If no market returns provided, use equal-weight average as market proxy
             logger.warning("No market returns provided, using equal-weight average")
             market_proxy = returns.mean(axis=1)
         else:
-            market_proxy = self.market_returns
+            market_proxy = self.market_returns.reindex(returns.index)
 
-        # 简化实现：计算与市场的相关性，然后计算残差波动率
-        # 完整实现应该使用rolling regression
-        idio_vol = pd.DataFrame(index=returns.index, columns=returns.columns)
+        # Vectorized rolling beta: broadcast market across all tickers at once
+        market_df = pd.DataFrame(
+            np.tile(market_proxy.values.reshape(-1, 1), (1, len(returns.columns))),
+            index=returns.index,
+            columns=returns.columns,
+        )
 
-        for ticker in returns.columns:
-            ticker_returns = returns[ticker].dropna()
+        rolling_cov = returns.rolling(self.window, min_periods=self.window // 2).cov(market_df)
+        market_var = market_proxy.rolling(self.window, min_periods=self.window // 2).var()
+        beta = rolling_cov.div(market_var + 1e-9, axis=0)
 
-            # 对齐市场收益
-            aligned_market = market_proxy.reindex(ticker_returns.index)
+        # Residuals and idiosyncratic volatility — fully vectorized
+        residuals = returns - beta.multiply(market_proxy, axis=0)
+        idio_vol = residuals.rolling(self.window, min_periods=self.window // 2).std()
 
-            # 计算beta（滚动窗口）
-            cov = ticker_returns.rolling(self.window).cov(aligned_market)
-            market_var = aligned_market.rolling(self.window).var()
-            beta = cov / (market_var + 1e-9)
-
-            # 计算残差
-            residuals = ticker_returns - beta * aligned_market
-
-            # 计算残差波动率
-            residual_vol = residuals.rolling(
-                window=self.window,
-                min_periods=self.window // 2
-            ).std()
-
-            idio_vol[ticker] = residual_vol
-
-        # 年化
         if self.annualize:
-            idio_vol = idio_vol * np.sqrt(252)
+            idio_vol = self._annualize_vol(idio_vol)
 
-        # 低特质波动率为正信号
+        # Low idiosyncratic volatility is positive signal
         low_idio_factor = -1 * idio_vol
 
-        low_idio_factor = low_idio_factor.stack(dropna=False)
-
         logger.info(f"{self.name} calculation complete")
-        return low_idio_factor
+        return self._stack_result(low_idio_factor)
 
 
 class RangeVolatilityFactor(BaseFactor):
     """
-    价格区间波动率因子
+    Price Range Volatility Factor
 
-    基于最高价和最低价的波动率估计
+    Volatility estimation based on high and low prices
     Parkinson (1980) estimator
     """
 
@@ -272,11 +253,11 @@ class RangeVolatilityFactor(BaseFactor):
         Parameters
         ----------
         window : int
-            滚动窗口
+            Rolling window
         annualize : bool
-            是否年化
+            Whether to annualize
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.window = window
@@ -286,17 +267,18 @@ class RangeVolatilityFactor(BaseFactor):
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         """
-        计算基于High-Low区间的波动率
+        Calculate High-Low range-based volatility
 
-        Parkinson公式：
+        Parkinson formula:
         σ^2 = (1 / (4 * ln(2))) * E[(ln(H/L))^2]
         """
+        self._validate_data(data, required=['high', 'low'])
         logger.info(f"Calculating {self.name} factor...")
 
         high = data['high'].unstack(level='ticker')
         low = data['low'].unstack(level='ticker')
 
-        # 计算对数比率
+        # Calculate log ratio
         log_hl_ratio = np.log(high / low)
 
         # Parkinson estimator
@@ -305,25 +287,22 @@ class RangeVolatilityFactor(BaseFactor):
             min_periods=self.window // 2
         ).apply(lambda x: np.sqrt(np.mean(x**2) / (4 * np.log(2))))
 
-        # 年化
         if self.annualize:
-            parkinson_vol = parkinson_vol * np.sqrt(252)
+            parkinson_vol = self._annualize_vol(parkinson_vol)
 
-        # 低波动率为正信号
+        # Low volatility is positive signal
         low_range_factor = -1 * parkinson_vol
 
-        low_range_factor = low_range_factor.stack(dropna=False)
-
         logger.info(f"{self.name} calculation complete")
-        return low_range_factor
+        return self._stack_result(low_range_factor)
 
 
 class GARCHVolatilityFactor(BaseFactor):
     """
-    GARCH模型波动率因子
+    GARCH Model Volatility Factor
 
-    使用GARCH(1,1)模型估计条件波动率
-    需要arch包
+    Estimates conditional volatility using GARCH(1,1) model
+    Requires arch package
     """
 
     def __init__(
@@ -335,9 +314,9 @@ class GARCHVolatilityFactor(BaseFactor):
         Parameters
         ----------
         window : int
-            估计窗口
+            Estimation window
         name : str
-            因子名称
+            Factor name
         """
         super().__init__(name)
         self.window = window
@@ -346,26 +325,24 @@ class GARCHVolatilityFactor(BaseFactor):
 
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         """
-        计算GARCH波动率
+        Calculate GARCH volatility
 
-        注：这是一个简化实现，完整版本需要arch包
+        Note: This is a simplified implementation, full version requires arch package
         """
+        self._validate_data(data)
         logger.warning("GARCH implementation requires 'arch' package, using simplified approach")
 
-        # 简化：使用EWMA作为GARCH的近似
-        close = data['close'].unstack(level='ticker')
+        close = self._unstack_close(data)
         returns = np.log(close / close.shift(1))
 
-        # EWMA波动率（类似GARCH）
-        ewma_vol = returns.ewm(span=self.window // 10, adjust=False).std() * np.sqrt(252)
+        # EWMA volatility (GARCH approximation)
+        ewma_vol = self._annualize_vol(returns.ewm(span=self.window // 10, adjust=False).std())
 
-        # 低波动率为正信号
+        # Low volatility is positive signal
         low_garch_factor = -1 * ewma_vol
 
-        low_garch_factor = low_garch_factor.stack(dropna=False)
-
         logger.info(f"{self.name} calculation complete (simplified)")
-        return low_garch_factor
+        return self._stack_result(low_garch_factor)
 
 
 if __name__ == "__main__":

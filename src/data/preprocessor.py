@@ -1,6 +1,6 @@
 """
-数据预处理模块
-处理复权、缺失值、异常值、Winsorize等
+Data Preprocessing Module
+Handles adjustments, missing values, outliers, winsorization, etc.
 """
 
 from typing import Tuple, Dict
@@ -19,42 +19,42 @@ from config.settings import (
 
 
 class DataPreprocessor:
-    """数据预处理器"""
+    """Data Preprocessor"""
 
     def __init__(self):
         logger.info("DataPreprocessor initialized")
 
     def adjust_prices(self, data: pd.DataFrame) -> pd.DataFrame:
         """
-        使用Adj Close计算调整因子，应用到OHLC
+        Calculate adjustment factor using Adj Close, apply to OHLC
 
         Parameters
         ----------
         data : pd.DataFrame
-            原始数据，包含 'close', 'adj close', 'open', 'high', 'low'
+            Raw data, contains 'close', 'adj close', 'open', 'high', 'low'
 
         Returns
         -------
         pd.DataFrame
-            复权后的数据
+            Adjusted data
         """
         logger.info("Adjusting prices for stock splits and dividends")
 
         df = data.copy()
 
-        # 计算调整因子
+        # Calculate adjustment factor
         if 'adj close' in df.columns and 'close' in df.columns:
             df['adj_factor'] = df['adj close'] / df['close']
 
-            # 应用到OHLC
+            # Apply to OHLC
             for col in ['open', 'high', 'low']:
                 if col in df.columns:
                     df[col] = df[col] * df['adj_factor']
 
-            # 使用adj close作为close
+            # Use adj close as close
             df['close'] = df['adj close']
 
-            # 删除不需要的列
+            # Remove unnecessary columns
             df = df.drop(columns=['adj close', 'adj_factor'], errors='ignore')
 
         logger.info("Price adjustment completed")
@@ -67,34 +67,34 @@ class DataPreprocessor:
         max_consecutive: int = MAX_CONSECUTIVE_MISSING
     ) -> pd.DataFrame:
         """
-        处理缺失值
+        Handle missing values
 
         Parameters
         ----------
         data : pd.DataFrame
-            输入数据
+            Input data
         method : str
-            填充方法：'ffill' (前向填充), 'bfill' (后向填充), 'interpolate' (插值)
+            Fill method: 'ffill' (forward fill), 'bfill' (backward fill), 'interpolate' (interpolation)
         max_consecutive : int
-            最大连续缺失天数
+            Maximum consecutive missing days
 
         Returns
         -------
         pd.DataFrame
-            处理后的数据
+            Processed data
         """
         logger.info(f"Handling missing values with method: {method}")
 
         df = data.copy()
         initial_nulls = df.isnull().sum().sum()
 
-        # 按ticker分组处理
+        # Process by ticker groups
         if method == "ffill":
             df = df.groupby(level='ticker').ffill(limit=max_consecutive)
         elif method == "bfill":
             df = df.groupby(level='ticker').bfill(limit=max_consecutive)
         elif method == "interpolate":
-            # 对数值列进行线性插值
+            # Linear interpolation for numeric columns
             numeric_cols = df.select_dtypes(include=[np.number]).columns
             df[numeric_cols] = df.groupby(level='ticker')[numeric_cols].apply(
                 lambda x: x.interpolate(method='linear', limit=max_consecutive)
@@ -107,29 +107,29 @@ class DataPreprocessor:
 
     def detect_anomalies(self, data: pd.DataFrame) -> pd.DataFrame:
         """
-        检测并处理异常值
+        Detect and handle anomalies
 
-        异常检测规则：
-        1. 负价格 -> NaN
-        2. High < Low -> 删除该行
-        3. 单日涨跌 > 100% -> 标记为异常
+        Anomaly detection rules:
+        1. Negative prices -> NaN
+        2. High < Low -> Delete row
+        3. Single day return > 100% -> Mark as anomaly
 
         Parameters
         ----------
         data : pd.DataFrame
-            输入数据
+            Input data
 
         Returns
         -------
         pd.DataFrame
-            处理后的数据
+            Processed data
         """
         logger.info("Detecting and handling anomalies")
 
         df = data.copy()
         anomaly_count = 0
 
-        # 1. 负价格检测
+        # 1. Negative price detection
         price_cols = ['open', 'high', 'low', 'close']
         for col in price_cols:
             if col in df.columns:
@@ -140,7 +140,7 @@ class DataPreprocessor:
                     anomaly_count += negative_count
                     logger.warning(f"Found {negative_count} negative values in '{col}'")
 
-        # 2. High < Low 检测
+        # 2. High < Low detection
         if 'high' in df.columns and 'low' in df.columns:
             invalid_mask = df['high'] < df['low']
             invalid_count = invalid_mask.sum()
@@ -149,18 +149,18 @@ class DataPreprocessor:
                 anomaly_count += invalid_count
                 logger.warning(f"Found {invalid_count} rows where High < Low")
 
-        # 3. 极端收益率检测（按ticker分组）
+        # 3. Extreme return detection (grouped by ticker)
         if 'close' in df.columns:
-            # 计算日收益率
+            # Calculate daily returns
             df['_return'] = df.groupby(level='ticker')['close'].pct_change()
 
-            # 检测极端收益
+            # Detect extreme returns
             extreme_mask = df['_return'].abs() > MAX_SINGLE_DAY_RETURN
             extreme_count = extreme_mask.sum()
             if extreme_count > 0:
-                # 标记但不删除，让后续步骤处理
+                # Mark but don't delete, let subsequent steps handle
                 logger.warning(f"Found {extreme_count} extreme returns (>{MAX_SINGLE_DAY_RETURN:.0%})")
-                # 可选：设置为NaN
+                # Optional: set to NaN
                 # df.loc[extreme_mask, 'close'] = np.nan
 
             df = df.drop(columns=['_return'])
@@ -176,23 +176,23 @@ class DataPreprocessor:
         by_ticker: bool = False
     ) -> pd.DataFrame:
         """
-        Winsorize处理（截尾）
+        Winsorize processing (trimming)
 
         Parameters
         ----------
         data : pd.DataFrame
-            输入数据
+            Input data
         lower : float
-            下分位数（例如0.01表示1%）
+            Lower quantile (e.g., 0.01 means 1%)
         upper : float
-            上分位数（例如0.99表示99%）
+            Upper quantile (e.g., 0.99 means 99%)
         by_ticker : bool
-            是否按ticker分别处理
+            Whether to process by ticker separately
 
         Returns
         -------
         pd.DataFrame
-            处理后的数据
+            Processed data
         """
         logger.info(f"Winsorizing data: [{lower:.2%}, {upper:.2%}]")
 
@@ -200,13 +200,13 @@ class DataPreprocessor:
         numeric_cols = df.select_dtypes(include=[np.number]).columns
 
         if by_ticker:
-            # 按ticker分组winsorize
+            # Winsorize by ticker groups
             for col in numeric_cols:
                 df[col] = df.groupby(level='ticker')[col].transform(
                     lambda x: x.clip(lower=x.quantile(lower), upper=x.quantile(upper))
                 )
         else:
-            # 全局winsorize
+            # Global winsorize
             for col in numeric_cols:
                 lower_bound = df[col].quantile(lower)
                 upper_bound = df[col].quantile(upper)
@@ -217,19 +217,19 @@ class DataPreprocessor:
 
     def validate_data_quality(self, data: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
         """
-        综合数据质量验证
+        Comprehensive data quality validation
 
         Parameters
         ----------
         data : pd.DataFrame
-            输入数据
+            Input data
 
         Returns
         -------
         pd.DataFrame
-            清洗后的数据
+            Cleaned data
         Dict
-            数据质量报告
+            Data quality report
         """
         logger.info("Starting comprehensive data quality validation")
 
@@ -246,7 +246,7 @@ class DataPreprocessor:
             'final_nulls': None
         }
 
-        # 按ticker统计缺失值比例
+        # Calculate missing value ratio by ticker
         missing_by_ticker = data.groupby(level='ticker').apply(
             lambda x: x.isnull().sum().sum() / (len(x) * len(x.columns))
         )
@@ -257,12 +257,12 @@ class DataPreprocessor:
             report['removed_tickers'] = bad_tickers
             data = data.drop(bad_tickers, level='ticker')
 
-        # 应用所有预处理步骤
+        # Apply all preprocessing steps
         data = self.adjust_prices(data)
         data = self.detect_anomalies(data)
         data = self.handle_missing_values(data)
 
-        # 最终统计
+        # Final statistics
         report['final_shape'] = data.shape
         report['final_nulls'] = data.isnull().sum().sum()
         report['data_coverage'] = 1 - (report['final_nulls'] / (data.shape[0] * data.shape[1]))
@@ -276,19 +276,19 @@ class DataPreprocessor:
 
     def compute_returns(self, data: pd.DataFrame, periods: list = [1, 5, 21]) -> pd.DataFrame:
         """
-        计算多期收益率
+        Calculate multi-period returns
 
         Parameters
         ----------
         data : pd.DataFrame
-            价格数据
+            Price data
         periods : list
-            收益率周期（交易日）
+            Return periods (trading days)
 
         Returns
         -------
         pd.DataFrame
-            包含收益率的数据
+            Data with returns
         """
         logger.info(f"Computing returns for periods: {periods}")
 
@@ -298,7 +298,7 @@ class DataPreprocessor:
             col_name = f'return_{period}d'
             df[col_name] = df.groupby(level='ticker')['close'].pct_change(period)
 
-        # 对数收益率（用于波动率计算）
+        # Log returns (for volatility calculation)
         df['log_return'] = df.groupby(level='ticker')['close'].apply(
             lambda x: np.log(x / x.shift(1))
         )
@@ -308,18 +308,18 @@ class DataPreprocessor:
 
 
 if __name__ == "__main__":
-    # 测试代码
+    # Test code
     from src.data.fetcher import YFinanceFetcher
 
-    # 配置日志
+    # Configure logging
     logger.add("data_preprocessor.log", rotation="10 MB")
 
-    # 获取测试数据
+    # Fetch test data
     fetcher = YFinanceFetcher()
     test_tickers = ["AAPL", "MSFT", "TSLA"]
     data = fetcher.fetch_batch(test_tickers, "2023-01-01", "2024-01-01")
 
-    # 测试预处理
+    # Test preprocessing
     preprocessor = DataPreprocessor()
     clean_data, report = preprocessor.validate_data_quality(data)
 

@@ -1,6 +1,6 @@
 """
-IC (Information Coefficient) 深度分析模块
-包括IC时间序列、IC衰减、IC一致性等高级分析
+IC (Information Coefficient) Deep Analysis Module
+Includes IC time series, IC decay, IC consistency and other advanced analyses
 """
 
 import pandas as pd
@@ -14,14 +14,14 @@ from loguru import logger
 
 class ICAnalyzer:
     """
-    IC分析器
+    IC Analyzer
 
-    功能：
-    1. IC时间序列分析
-    2. IC衰减分析（不同前瞻期）
-    3. IC一致性分析
-    4. IC分布分析
-    5. 滚动IC分析
+    Features:
+    1. IC time series analysis
+    2. IC decay analysis (different forward periods)
+    3. IC consistency analysis
+    4. IC distribution analysis
+    5. Rolling IC analysis
     """
 
     def __init__(self, method: str = 'spearman'):
@@ -29,7 +29,7 @@ class ICAnalyzer:
         Parameters
         ----------
         method : str
-            相关系数计算方法，'spearman'（默认）或'pearson'
+            Correlation coefficient method, 'spearman' (default) or 'pearson'
         """
         self.method = method
         logger.info(f"ICAnalyzer initialized with method: {method}")
@@ -41,31 +41,31 @@ class ICAnalyzer:
         method: Optional[str] = None
     ) -> pd.Series:
         """
-        计算IC时间序列
+        Calculate IC time series
 
         Parameters
         ----------
         factor : pd.Series
-            因子值，MultiIndex (date, ticker)
+            Factor values, MultiIndex (date, ticker)
         returns : pd.Series
-            未来收益率，MultiIndex (date, ticker)
+            Future returns, MultiIndex (date, ticker)
         method : str, optional
-            相关系数方法，默认使用初始化时的方法
+            Correlation method, defaults to initialization method
 
         Returns
         -------
         pd.Series
-            IC时间序列，indexed by date
+            IC time series, indexed by date
         """
         method = method or self.method
 
-        # 对齐数据
+        # Align data
         aligned_data = pd.DataFrame({
             'factor': factor,
             'return': returns
         }).dropna()
 
-        # 按日期分组计算IC
+        # Calculate IC grouped by date
         ic_series = aligned_data.groupby(level='date').apply(
             lambda x: x['factor'].corr(x['return'], method=method)
         )
@@ -79,19 +79,19 @@ class ICAnalyzer:
         periods: List[int]
     ) -> Dict[int, pd.Series]:
         """
-        计算多个周期的前瞻收益率
+        Calculate forward returns for multiple periods
 
         Parameters
         ----------
         prices : pd.DataFrame
-            价格数据，MultiIndex (date, ticker)，包含'close'列
+            Price data, MultiIndex (date, ticker), contains 'close' column
         periods : List[int]
-            前瞻周期列表（交易日）
+            Forward period list (trading days)
 
         Returns
         -------
         Dict[int, pd.Series]
-            字典，key为周期，value为收益率Series
+            Dictionary, key is period, value is returns Series
         """
         logger.info(f"Computing forward returns for periods: {periods}")
 
@@ -103,7 +103,7 @@ class ICAnalyzer:
         forward_returns = {}
 
         for period in periods:
-            # 计算前瞻收益率
+            # Calculate forward returns
             fwd_return = close.pct_change(period).shift(-period)
             fwd_return = fwd_return.stack(dropna=False)
             forward_returns[period] = fwd_return
@@ -120,23 +120,23 @@ class ICAnalyzer:
         step: int = 1
     ) -> pd.DataFrame:
         """
-        计算IC衰减曲线
+        Calculate IC decay curve
 
         Parameters
         ----------
         factor : pd.Series
-            因子值
+            Factor values
         prices : pd.DataFrame
-            价格数据
+            Price data
         max_period : int
-            最大前瞻期（默认63天=3个月）
+            Maximum forward period (default 63 days = 3 months)
         step : int
-            步长
+            Step size
 
         Returns
         -------
         pd.DataFrame
-            IC衰减数据，columns=['period', 'IC_mean', 'IC_std', 't_stat']
+            IC decay data, columns=['period', 'IC_mean', 'IC_std', 't_stat']
         """
         logger.info(f"Computing IC decay up to {max_period} periods...")
 
@@ -168,21 +168,21 @@ class ICAnalyzer:
         window: int = 63
     ) -> pd.Series:
         """
-        计算滚动IC
+        Calculate rolling IC
 
         Parameters
         ----------
         factor : pd.Series
-            因子值
+            Factor values
         returns : pd.Series
-            收益率
+            Returns
         window : int
-            滚动窗口（默认63天=3个月）
+            Rolling window (default 63 days = 3 months)
 
         Returns
         -------
         pd.Series
-            滚动IC时间序列
+            Rolling IC time series
         """
         logger.info(f"Computing rolling IC with window={window}...")
 
@@ -191,7 +191,7 @@ class ICAnalyzer:
             'return': returns
         }).dropna()
 
-        # 获取所有日期
+        # Get all dates
         dates = aligned_data.index.get_level_values('date').unique().sort_values()
 
         rolling_ic = []
@@ -215,23 +215,23 @@ class ICAnalyzer:
         freq: str = 'M'
     ) -> pd.DataFrame:
         """
-        分析IC一致性（按月度、季度等聚合）
+        Analyze IC consistency (aggregated by month, quarter, etc.)
 
         Parameters
         ----------
         ic_series : pd.Series
-            IC时间序列
+            IC time series
         freq : str
-            聚合频率，'M'=月度, 'Q'=季度, 'Y'=年度
+            Aggregation frequency, 'M'=monthly, 'Q'=quarterly, 'Y'=yearly
 
         Returns
         -------
         pd.DataFrame
-            一致性统计
+            Consistency statistics
         """
         logger.info(f"Analyzing IC consistency with frequency: {freq}")
 
-        # 按频率聚合
+        # Aggregate by frequency
         ic_grouped = ic_series.groupby(pd.Grouper(freq=freq)).agg([
             ('mean', 'mean'),
             ('std', 'std'),
@@ -239,10 +239,10 @@ class ICAnalyzer:
             ('count', 'count')
         ])
 
-        # 计算t统计量
+        # Calculate t-statistic
         ic_grouped['t_stat'] = ic_grouped['mean'] / ic_grouped['std'] * np.sqrt(ic_grouped['count'])
 
-        # 总体一致性
+        # Overall consistency
         overall_consistency = (ic_series > 0).mean()
 
         logger.info(f"Overall IC consistency (positive %): {overall_consistency:.2%}")
@@ -251,17 +251,17 @@ class ICAnalyzer:
 
     def compute_ic_statistics(self, ic_series: pd.Series) -> Dict:
         """
-        计算IC的全面统计指标
+        Calculate comprehensive IC statistics
 
         Parameters
         ----------
         ic_series : pd.Series
-            IC时间序列
+            IC time series
 
         Returns
         -------
         Dict
-            统计指标字典
+            Statistics dictionary
         """
         logger.info("Computing comprehensive IC statistics...")
 
@@ -278,7 +278,7 @@ class ICAnalyzer:
             't_stat': ic_series.mean() / ic_series.std() * np.sqrt(len(ic_series)),
             'p_value': 2 * (1 - stats.t.cdf(abs(ic_series.mean() / ic_series.std() * np.sqrt(len(ic_series))), len(ic_series) - 1)),
             'sharpe_ratio': ic_series.mean() / ic_series.std() if ic_series.std() > 0 else 0,
-            'info_ratio': ic_series.mean() / ic_series.std() * np.sqrt(252) if ic_series.std() > 0 else 0,  # 年化
+            'info_ratio': ic_series.mean() / ic_series.std() * np.sqrt(252) if ic_series.std() > 0 else 0,  # Annualized
         }
 
         logger.info(f"IC Mean: {stats_dict['mean']:.4f}, t-stat: {stats_dict['t_stat']:.2f}")
@@ -293,18 +293,18 @@ class ICAnalyzer:
         figsize: Tuple[int, int] = (15, 10)
     ):
         """
-        绘制IC分析图表
+        Plot IC analysis charts
 
         Parameters
         ----------
         ic_series : pd.Series
-            IC时间序列
+            IC time series
         ic_decay : pd.DataFrame, optional
-            IC衰减数据
+            IC decay data
         rolling_ic : pd.Series, optional
-            滚动IC
+            Rolling IC
         figsize : Tuple[int, int]
-            图表尺寸
+            Figure size
         """
         logger.info("Generating IC analysis plots...")
 
@@ -312,7 +312,7 @@ class ICAnalyzer:
         fig, axes = plt.subplots(n_plots, 1, figsize=figsize)
         ax_idx = 0
 
-        # 1. IC时间序列
+        # 1. IC time series
         axes[ax_idx].plot(ic_series.index, ic_series.values, alpha=0.7, linewidth=1)
         axes[ax_idx].axhline(y=0, color='black', linestyle='--', linewidth=0.8)
         axes[ax_idx].axhline(y=ic_series.mean(), color='red', linestyle='--', linewidth=0.8,
@@ -327,7 +327,7 @@ class ICAnalyzer:
         axes[ax_idx].grid(True, alpha=0.3)
         ax_idx += 1
 
-        # 2. IC分布直方图
+        # 2. IC distribution histogram
         axes[ax_idx].hist(ic_series.dropna(), bins=50, edgecolor='black', alpha=0.7)
         axes[ax_idx].axvline(x=0, color='black', linestyle='--', linewidth=0.8)
         axes[ax_idx].axvline(x=ic_series.mean(), color='red', linestyle='--', linewidth=0.8,
@@ -339,7 +339,7 @@ class ICAnalyzer:
         axes[ax_idx].grid(True, alpha=0.3)
         ax_idx += 1
 
-        # 3. IC累积分布
+        # 3. IC cumulative distribution
         ic_sorted = np.sort(ic_series.dropna())
         cumulative = np.arange(1, len(ic_sorted) + 1) / len(ic_sorted)
         axes[ax_idx].plot(ic_sorted, cumulative, linewidth=2)
@@ -351,7 +351,7 @@ class ICAnalyzer:
         axes[ax_idx].grid(True, alpha=0.3)
         ax_idx += 1
 
-        # 4. IC衰减（如果提供）
+        # 4. IC decay (if provided)
         if ic_decay is not None:
             ax = axes[ax_idx]
             ax.plot(ic_decay['period'], ic_decay['IC_mean'], marker='o', linewidth=2)
@@ -366,7 +366,7 @@ class ICAnalyzer:
             ax.grid(True, alpha=0.3)
             ax_idx += 1
 
-        # 5. 滚动IC（如果提供）
+        # 5. Rolling IC (if provided)
         if rolling_ic is not None:
             ax = axes[ax_idx]
             ax.plot(rolling_ic.index, rolling_ic.values, linewidth=2)
@@ -386,7 +386,7 @@ class ICAnalyzer:
 
 
 if __name__ == "__main__":
-    # 测试代码
+    # Test code
     from src.data.fetcher import YFinanceFetcher
     from src.data.preprocessor import DataPreprocessor
     from src.data.cache_manager import CacheManager
@@ -394,7 +394,7 @@ if __name__ == "__main__":
 
     logger.add("ic_analysis_test.log", rotation="10 MB")
 
-    # 获取数据
+    # Fetch data
     fetcher = YFinanceFetcher()
     cache = CacheManager()
     test_tickers = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA", "AMZN", "META", "JPM"]
@@ -404,34 +404,34 @@ if __name__ == "__main__":
     preprocessor = DataPreprocessor()
     clean_data, _ = preprocessor.validate_data_quality(data)
 
-    # 计算因子
+    # Calculate factor
     momentum = MomentumFactor(lookback=252, skip=21)
     factor_values = momentum.compute(clean_data, normalize=True)
 
-    # IC分析
+    # IC analysis
     analyzer = ICAnalyzer(method='spearman')
 
-    # 1. 计算前瞻收益
+    # 1. Calculate forward returns
     forward_returns = analyzer.compute_forward_returns(clean_data, periods=[21])
 
-    # 2. 计算IC时间序列
+    # 2. Calculate IC time series
     ic_series = analyzer.compute_ic_series(factor_values, forward_returns[21])
 
-    # 3. IC统计
+    # 3. IC statistics
     ic_stats = analyzer.compute_ic_statistics(ic_series)
 
     print("\n=== IC Statistics ===")
     for key, value in ic_stats.items():
         print(f"{key}: {value:.4f}")
 
-    # 4. IC衰减
+    # 4. IC decay
     ic_decay = analyzer.compute_ic_decay(factor_values, clean_data, max_period=63, step=5)
 
     print("\n=== IC Decay ===")
     print(ic_decay.head(10))
 
-    # 5. 滚动IC
+    # 5. Rolling IC
     rolling_ic = analyzer.compute_rolling_ic(factor_values, forward_returns[21], window=63)
 
-    # 6. 可视化
+    # 6. Visualization
     analyzer.plot_ic_analysis(ic_series, ic_decay, rolling_ic)

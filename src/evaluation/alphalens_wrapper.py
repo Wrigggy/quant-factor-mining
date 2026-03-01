@@ -1,6 +1,6 @@
 """
-Alphalens集成模块
-用于因子有效性评估、IC分析、分位数收益分析
+Alphalens Integration Module
+For factor effectiveness evaluation, IC analysis, and quantile return analysis
 """
 
 import pandas as pd
@@ -23,14 +23,14 @@ from config.settings import ALPHALENS_PERIODS, ALPHALENS_QUANTILES
 
 class AlphalensEvaluator:
     """
-    Alphalens因子评估器
+    Alphalens Factor Evaluator
 
-    主要功能：
-    1. 准备Alphalens格式的数据
-    2. 计算前瞻收益率
-    3. 生成完整的tearsheet报告
-    4. 提取IC统计量
-    5. 分位数收益分析
+    Main Features:
+    1. Prepare data in Alphalens format
+    2. Calculate forward returns
+    3. Generate complete tearsheet reports
+    4. Extract IC statistics
+    5. Quantile return analysis
     """
 
     def __init__(
@@ -44,13 +44,13 @@ class AlphalensEvaluator:
         Parameters
         ----------
         periods : List[int], optional
-            前瞻收益率周期（交易日），默认[1, 5, 21]
+            Forward return periods (trading days), default [1, 5, 21]
         quantiles : int
-            分位数数量，默认5
+            Number of quantiles, default 5
         bins : int, optional
-            如果不使用分位数，可以指定固定的bins
+            If not using quantiles, can specify fixed bins
         filter_zscore : float, optional
-            过滤极端因子值（zscore阈值）
+            Filter extreme factor values (zscore threshold)
         """
         if not ALPHALENS_AVAILABLE:
             raise ImportError("alphalens-reloaded is required. Install with: pip install alphalens-reloaded")
@@ -70,58 +70,58 @@ class AlphalensEvaluator:
         max_loss: float = 0.35
     ) -> pd.DataFrame:
         """
-        准备Alphalens格式的数据
+        Prepare data in Alphalens format
 
         Parameters
         ----------
         factor : pd.Series
-            因子值，MultiIndex (date, ticker)
+            Factor values, MultiIndex (date, ticker)
         prices : pd.DataFrame
-            价格数据，MultiIndex (date, ticker)，包含'close'列
+            Price data, MultiIndex (date, ticker), contains 'close' column
         groupby : pd.Series, optional
-            分组变量（如行业），MultiIndex (date, ticker)
+            Grouping variable (e.g., industry), MultiIndex (date, ticker)
         max_loss : float
-            允许的最大数据丢失比例
+            Maximum allowed data loss ratio
 
         Returns
         -------
         pd.DataFrame
-            Alphalens格式的数据，包含factor和forward returns
+            Data in Alphalens format, contains factor and forward returns
         """
         logger.info("Preparing data for Alphalens...")
 
-        # 确保factor是Series
+        # Ensure factor is a Series
         if isinstance(factor, pd.DataFrame):
             if len(factor.columns) == 1:
                 factor = factor.iloc[:, 0]
             else:
                 raise ValueError("factor must be a Series, not a multi-column DataFrame")
 
-        # 提取价格
+        # Extract prices
         if isinstance(prices, pd.DataFrame):
             if 'close' in prices.columns:
                 prices = prices['close'].unstack(level='ticker')
             else:
-                # 假设已经是pivot格式
+                # Assume already in pivot format
                 pass
 
-        # 转换factor格式：Alphalens需要 MultiIndex (date, asset)
+        # Convert factor format: Alphalens requires MultiIndex (date, asset)
         factor_data = factor.copy()
         if not isinstance(factor_data.index, pd.MultiIndex):
             raise ValueError("factor must have MultiIndex (date, ticker)")
 
-        # 重命名index levels以匹配Alphalens
+        # Rename index levels to match Alphalens
         factor_data.index.names = ['date', 'asset']
 
-        # 确保prices的列名与factor的asset对应
+        # Ensure prices column names match factor assets
         if isinstance(prices, pd.DataFrame):
             prices.index.name = 'date'
-            # 只保留factor中存在的资产
+            # Keep only assets that exist in factor
             assets = factor_data.index.get_level_values('asset').unique()
             prices = prices[prices.columns.intersection(assets)]
 
         try:
-            # 使用Alphalens工具准备数据
+            # Use Alphalens tools to prepare data
             factor_data = get_clean_factor_and_forward_returns(
                 factor=factor_data,
                 prices=prices,
@@ -150,16 +150,16 @@ class AlphalensEvaluator:
         group_neutral: bool = False
     ):
         """
-        生成完整的Alphalens tearsheet
+        Generate complete Alphalens tearsheet
 
         Parameters
         ----------
         factor_data : pd.DataFrame
-            Alphalens格式的数据（从prepare_data获得）
+            Data in Alphalens format (obtained from prepare_data)
         long_short : bool
-            是否显示多空组合
+            Whether to display long-short portfolio
         group_neutral : bool
-            是否进行分组中性化
+            Whether to perform group neutralization
         """
         logger.info("Generating Alphalens tearsheets...")
 
@@ -191,27 +191,27 @@ class AlphalensEvaluator:
 
     def get_ic_summary(self, factor_data: pd.DataFrame) -> pd.DataFrame:
         """
-        提取IC统计摘要
+        Extract IC statistics summary
 
         Parameters
         ----------
         factor_data : pd.DataFrame
-            Alphalens格式的数据
+            Data in Alphalens format
 
         Returns
         -------
         pd.DataFrame
-            IC统计摘要，包含IC均值、标准差、t统计量、正值比例等
+            IC statistics summary, including IC mean, std, t-stat, positive ratio, etc.
         """
         logger.info("Computing IC summary statistics...")
 
         try:
             from alphalens.performance import factor_information_coefficient
 
-            # 计算IC
+            # Calculate IC
             ic = factor_information_coefficient(factor_data)
 
-            # 统计摘要
+            # Statistical summary
             ic_summary = pd.DataFrame({
                 'IC Mean': ic.mean(),
                 'IC Std': ic.std(),
@@ -230,11 +230,11 @@ class AlphalensEvaluator:
 
         except Exception as e:
             logger.error(f"Error computing IC summary: {e}")
-            # Fallback: 手动计算IC
+            # Fallback: manually calculate IC
             return self._compute_ic_manual(factor_data)
 
     def _compute_ic_manual(self, factor_data: pd.DataFrame) -> pd.DataFrame:
-        """手动计算IC（当alphalens方法失败时）"""
+        """Manually calculate IC (when alphalens method fails)"""
         from scipy import stats as scipy_stats
 
         ic_data = {}
@@ -242,7 +242,7 @@ class AlphalensEvaluator:
         for period in self.periods:
             period_col = f'{period}D'
             if period_col in factor_data.columns:
-                # 按日期分组计算IC
+                # Calculate IC grouped by date
                 ic_series = factor_data.groupby(level='date').apply(
                     lambda x: x['factor'].corr(x[period_col], method='spearman')
                 )
@@ -262,19 +262,19 @@ class AlphalensEvaluator:
         by_group: bool = False
     ) -> pd.DataFrame:
         """
-        获取分位数收益率
+        Get quantile returns
 
         Parameters
         ----------
         factor_data : pd.DataFrame
-            Alphalens格式的数据
+            Data in Alphalens format
         by_group : bool
-            是否按组分别计算
+            Whether to calculate by group
 
         Returns
         -------
         pd.DataFrame
-            分位数平均收益率
+            Quantile average returns
         """
         logger.info("Computing quantile returns...")
 
@@ -296,27 +296,27 @@ class AlphalensEvaluator:
 
     def get_turnover_analysis(self, factor_data: pd.DataFrame) -> pd.DataFrame:
         """
-        分析因子换手率
+        Analyze factor turnover
 
         Parameters
         ----------
         factor_data : pd.DataFrame
-            Alphalens格式的数据
+            Data in Alphalens format
 
         Returns
         -------
         pd.DataFrame
-            换手率统计
+            Turnover statistics
         """
         logger.info("Analyzing turnover...")
 
         try:
             from alphalens.performance import factor_rank_autocorrelation
 
-            # 计算因子排名自相关（换手率的逆指标）
+            # Calculate factor rank autocorrelation (inverse indicator of turnover)
             autocorr = factor_rank_autocorrelation(factor_data)
 
-            # 换手率 = 1 - 自相关
+            # Turnover = 1 - autocorrelation
             turnover = 1 - autocorr
 
             turnover_summary = pd.DataFrame({
@@ -341,43 +341,43 @@ class AlphalensEvaluator:
         generate_plots: bool = True
     ) -> Dict:
         """
-        完整的因子评估流程
+        Complete factor evaluation workflow
 
         Parameters
         ----------
         factor : pd.Series
-            因子值
+            Factor values
         prices : pd.DataFrame
-            价格数据
+            Price data
         groupby : pd.Series, optional
-            分组变量
+            Grouping variable
         generate_plots : bool
-            是否生成图表
+            Whether to generate plots
 
         Returns
         -------
         Dict
-            评估结果摘要
+            Evaluation results summary
         """
         logger.info("Starting complete factor evaluation...")
 
-        # 1. 准备数据
+        # 1. Prepare data
         factor_data = self.prepare_data(factor, prices, groupby)
 
-        # 2. 计算IC
+        # 2. Calculate IC
         ic_summary = self.get_ic_summary(factor_data)
 
-        # 3. 分位数收益
+        # 3. Quantile returns
         quantile_returns = self.get_quantile_returns(factor_data)
 
-        # 4. 换手率
+        # 4. Turnover
         turnover = self.get_turnover_analysis(factor_data)
 
-        # 5. 生成图表
+        # 5. Generate plots
         if generate_plots:
             self.generate_tearsheet(factor_data)
 
-        # 6. 汇总结果
+        # 6. Summarize results
         results = {
             'ic_summary': ic_summary,
             'quantile_returns': quantile_returns,
@@ -385,7 +385,7 @@ class AlphalensEvaluator:
             'factor_data': factor_data
         }
 
-        # 7. 判断因子是否有效
+        # 7. Determine if factor is valid
         is_valid = self._validate_factor(ic_summary, quantile_returns)
         results['is_valid_factor'] = is_valid
 
@@ -400,25 +400,26 @@ class AlphalensEvaluator:
         tstat_threshold: float = 2.0
     ) -> bool:
         """
-        验证因子是否有效
+        Validate if factor is effective
 
-        标准：
-        1. IC均值 > 0.02
-        2. IC t统计量 > 2.0
-        3. 分位数收益单调递增
+        Criteria:
+        1. IC mean > 0.02
+        2. IC t-statistic > 2.0
+        3. Quantile returns are monotonically increasing
         """
-        # 检查IC
+        # Check IC
         ic_mean = ic_summary['IC Mean'].iloc[0]  # 使用第一个周期
         t_stat = ic_summary['t-stat'].iloc[0]
 
         ic_valid = (abs(ic_mean) > ic_threshold) and (abs(t_stat) > tstat_threshold)
 
-        # 检查单调性（Q5 > Q1）
+        # Check monotonicity (Q5 > Q1)
         try:
             q5_return = quantile_returns.loc[5].iloc[0]  # 最高分位
             q1_return = quantile_returns.loc[1].iloc[0]  # 最低分位
             monotonic = (q5_return > q1_return) if ic_mean > 0 else (q5_return < q1_return)
-        except:
+        except Exception as e:
+            logger.warning(f"Monotonicity check failed: {e}")
             monotonic = False
 
         logger.info(f"Validation: IC={ic_mean:.4f}, t-stat={t_stat:.2f}, Monotonic={monotonic}")
@@ -427,7 +428,7 @@ class AlphalensEvaluator:
 
 
 if __name__ == "__main__":
-    # 测试代码
+    # Test code
     from src.data.fetcher import YFinanceFetcher
     from src.data.preprocessor import DataPreprocessor
     from src.data.cache_manager import CacheManager
@@ -435,7 +436,7 @@ if __name__ == "__main__":
 
     logger.add("alphalens_test.log", rotation="10 MB")
 
-    # 获取数据
+    # Fetch data
     fetcher = YFinanceFetcher()
     cache = CacheManager()
     test_tickers = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA", "AMZN", "META", "JPM"]
@@ -445,18 +446,18 @@ if __name__ == "__main__":
     preprocessor = DataPreprocessor()
     clean_data, _ = preprocessor.validate_data_quality(data)
 
-    # 计算因子
+    # Calculate factor
     momentum = MomentumFactor(lookback=252, skip=21)
     factor_values = momentum.compute(clean_data, normalize=True)
 
-    # 评估因子
+    # Evaluate factor
     evaluator = AlphalensEvaluator(periods=[1, 5, 21], quantiles=5)
 
     try:
         results = evaluator.evaluate_factor(
             factor=factor_values,
             prices=clean_data,
-            generate_plots=False  # 在测试中不生成图表
+            generate_plots=False  # Don't generate plots in test
         )
 
         print("\n=== Factor Evaluation Results ===")

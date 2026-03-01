@@ -325,26 +325,30 @@ class CovarianceEstimator:
         logger.info(f"Estimating covariance with method: {method}, window: {window}")
 
         if method == 'sample':
-            return self.sample_covariance(returns, window)
+            cov_matrix = self.sample_covariance(returns, window)
 
         elif method == 'ledoit_wolf':
-            return self.ledoit_wolf_shrinkage(returns, window)
+            cov_matrix = self.ledoit_wolf_shrinkage(returns, window)
 
         elif method == 'oas':
-            return self.oas_shrinkage(returns, window)
+            cov_matrix = self.oas_shrinkage(returns, window)
 
         elif method == 'ewma':
             span = kwargs.get('span', 60)
-            return self.ewma_covariance(returns, span)
+            cov_matrix = self.ewma_covariance(returns, span)
 
         elif method == 'factor_model':
             if factors is None:
                 raise ValueError("factors required for factor_model method")
             cov_matrix, _, _ = self.factor_model_covariance(returns, factors, window)
-            return cov_matrix
 
         else:
             raise ValueError(f"Unknown covariance estimation method: {method}")
+
+        if not self.validate_covariance(cov_matrix):
+            cov_matrix = self.fix_covariance(cov_matrix, method='clip')
+
+        return cov_matrix
 
     @staticmethod
     def validate_covariance(cov_matrix: pd.DataFrame) -> bool:

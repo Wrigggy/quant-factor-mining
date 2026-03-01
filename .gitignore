@@ -1,3 +1,6 @@
+# Session context (local only)
+.claude_session.md
+
 # Python
 __pycache__/
 *.py[cod]

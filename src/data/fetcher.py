@@ -1,6 +1,6 @@
 """
-YFinance数据获取模块
-实现速率限制、批量处理、并行下载、重试机制
+YFinance Data Fetching Module
+Implements rate limiting, batch processing, parallel downloading, retry mechanism
 """
 
 import time
@@ -25,22 +25,22 @@ from config.settings import (
 
 
 class RateLimiter:
-    """速率限制器"""
+    """Rate Limiter"""
 
     def __init__(self, max_requests_per_hour: int):
         self.max_requests = max_requests_per_hour
         self.requests = []
-        self.window = 3600  # 1小时（秒）
+        self.window = 3600  # 1 hour (seconds)
 
     def wait_if_needed(self):
-        """如果达到速率限制，等待"""
+        """Wait if rate limit is reached"""
         now = time.time()
 
-        # 移除1小时前的请求记录
+        # Remove request records from 1 hour ago
         self.requests = [req_time for req_time in self.requests if now - req_time < self.window]
 
         if len(self.requests) >= self.max_requests:
-            # 计算需要等待的时间
+            # Calculate wait time needed
             oldest_request = min(self.requests)
             wait_time = self.window - (now - oldest_request) + 1
             if wait_time > 0:
@@ -52,14 +52,14 @@ class RateLimiter:
 
 
 class YFinanceFetcher:
-    """YFinance数据获取器"""
+    """YFinance Data Fetcher"""
 
     def __init__(self, rate_limit: Optional[int] = None):
         """
         Parameters
         ----------
         rate_limit : int, optional
-            每小时最大请求数，默认使用配置文件中的值
+            Maximum requests per hour, defaults to value from config file
         """
         self.rate_limiter = RateLimiter(rate_limit or YFINANCE_RATE_LIMIT)
         logger.info(f"YFinanceFetcher initialized with rate limit: {rate_limit or YFINANCE_RATE_LIMIT} req/hour")
@@ -72,23 +72,23 @@ class YFinanceFetcher:
         retry_times: int = YFINANCE_RETRY_TIMES
     ) -> Optional[pd.DataFrame]:
         """
-        获取单只股票的数据
+        Fetch data for a single stock
 
         Parameters
         ----------
         ticker : str
-            股票代码
+            Ticker symbol
         start_date : str
-            开始日期 (YYYY-MM-DD)
+            Start date (YYYY-MM-DD)
         end_date : str
-            结束日期 (YYYY-MM-DD)
+            End date (YYYY-MM-DD)
         retry_times : int
-            重试次数
+            Number of retries
 
         Returns
         -------
         pd.DataFrame or None
-            包含OHLCV数据的DataFrame，失败返回None
+            DataFrame containing OHLCV data, returns None on failure
         """
         self.rate_limiter.wait_if_needed()
 
@@ -101,17 +101,17 @@ class YFinanceFetcher:
                     logger.warning(f"{ticker}: No data returned")
                     return None
 
-                # 检查数据质量
+                # Check data quality
                 missing_ratio = df.isnull().sum().sum() / (len(df) * len(df.columns))
                 if missing_ratio > MAX_MISSING_RATIO:
                     logger.warning(f"{ticker}: Too many missing values ({missing_ratio:.1%})")
                     return None
 
-                # 添加Ticker列
+                # Add Ticker column
                 df['Ticker'] = ticker
                 df = df.reset_index()
 
-                # 标准化列名
+                # Standardize column names
                 df = df.rename(columns={'Date': 'date'})
                 df.columns = [col.lower() for col in df.columns]
 
@@ -136,23 +136,23 @@ class YFinanceFetcher:
         max_workers: int = YFINANCE_MAX_WORKERS
     ) -> pd.DataFrame:
         """
-        并行批量获取多只股票数据
+        Fetch data for multiple stocks in parallel
 
         Parameters
         ----------
         tickers : List[str]
-            股票代码列表
+            List of ticker symbols
         start_date : str
-            开始日期 (YYYY-MM-DD)
+            Start date (YYYY-MM-DD)
         end_date : str
-            结束日期 (YYYY-MM-DD)
+            End date (YYYY-MM-DD)
         max_workers : int
-            并行线程数
+            Number of parallel threads
 
         Returns
         -------
         pd.DataFrame
-            合并后的数据，MultiIndex (date, ticker)
+            Merged data, MultiIndex (date, ticker)
         """
         logger.info(f"Fetching {len(tickers)} tickers from {start_date} to {end_date}")
 
@@ -160,13 +160,13 @@ class YFinanceFetcher:
         failed_tickers = []
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # 提交所有任务
+            # Submit all tasks
             future_to_ticker = {
                 executor.submit(self.fetch_single_ticker, ticker, start_date, end_date): ticker
                 for ticker in tickers
             }
 
-            # 使用tqdm显示进度
+            # Use tqdm to show progress
             with tqdm(total=len(tickers), desc="Downloading", unit="ticker") as pbar:
                 for future in as_completed(future_to_ticker):
                     ticker = future_to_ticker[future]
@@ -189,14 +189,14 @@ class YFinanceFetcher:
             logger.error("No data fetched for any ticker")
             return pd.DataFrame()
 
-        # 合并所有数据
+        # Merge all data
         combined_df = pd.concat(results, ignore_index=True)
 
-        # 转换为MultiIndex
+        # Convert to MultiIndex
         combined_df['date'] = pd.to_datetime(combined_df['date'])
         combined_df = combined_df.set_index(['date', 'ticker'])
 
-        # 选择需要的列
+        # Select needed columns
         columns_to_keep = ['open', 'high', 'low', 'close', 'volume', 'adj close']
         combined_df = combined_df[[col for col in columns_to_keep if col in combined_df.columns]]
 
@@ -213,23 +213,23 @@ class YFinanceFetcher:
         batch_size: int = YFINANCE_BATCH_SIZE
     ) -> pd.DataFrame:
         """
-        分批获取大量股票数据
+        Fetch large amounts of stock data in batches
 
         Parameters
         ----------
         tickers : List[str]
-            股票代码列表
+            List of ticker symbols
         start_date : str
-            开始日期
+            Start date
         end_date : str
-            结束日期
+            End date
         batch_size : int
-            每批股票数量
+            Number of stocks per batch
 
         Returns
         -------
         pd.DataFrame
-            合并后的完整数据
+            Complete merged data
         """
         all_data = []
         num_batches = (len(tickers) + batch_size - 1) // batch_size
@@ -246,7 +246,7 @@ class YFinanceFetcher:
             if not batch_data.empty:
                 all_data.append(batch_data)
 
-            # 批次间短暂延迟
+            # Short delay between batches
             if i + batch_size < len(tickers):
                 time.sleep(2)
 
@@ -254,7 +254,7 @@ class YFinanceFetcher:
             logger.error("No data fetched from any batch")
             return pd.DataFrame()
 
-        # 合并所有批次
+        # Merge all batches
         final_df = pd.concat(all_data)
         logger.info(f"Total data fetched: {len(final_df)} rows")
 
@@ -263,19 +263,19 @@ class YFinanceFetcher:
 
 def get_valid_date_range(start_date: str, end_date: str) -> tuple:
     """
-    验证并返回有效的日期范围
+    Validate and return valid date range
 
     Parameters
     ----------
     start_date : str
-        开始日期
+        Start date
     end_date : str
-        结束日期
+        End date
 
     Returns
     -------
     tuple
-        (start_date, end_date) 字符串元组
+        (start_date, end_date) string tuple
     """
     start = pd.to_datetime(start_date)
     end = pd.to_datetime(end_date)
@@ -292,7 +292,7 @@ def get_valid_date_range(start_date: str, end_date: str) -> tuple:
 
 
 if __name__ == "__main__":
-    # 测试代码
+    # Test code
     from config.universes import get_universe
 
     # 配置日志

@@ -1,6 +1,6 @@
 """
-本地数据缓存管理模块
-使用Parquet格式存储，避免重复API调用
+Local Data Cache Management Module
+Uses Parquet format for storage, avoids repeated API calls
 """
 
 import hashlib
@@ -21,14 +21,14 @@ from config.settings import (
 
 
 class CacheManager:
-    """缓存管理器"""
+    """Cache Manager"""
 
     def __init__(self, cache_dir: Optional[Path] = None):
         """
         Parameters
         ----------
         cache_dir : Path, optional
-            缓存目录，默认使用配置文件中的RAW_DATA_DIR
+            Cache directory, defaults to RAW_DATA_DIR from config file
         """
         self.cache_dir = cache_dir or RAW_DATA_DIR
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -43,31 +43,31 @@ class CacheManager:
         end_date: str
     ) -> str:
         """
-        生成缓存键
+        Generate cache key
 
         Parameters
         ----------
         market : str
-            市场类型
+            Market type
         universe : str
-            股票池名称
+            Stock universe name
         tickers : List[str]
-            股票代码列表
+            List of ticker symbols
         start_date : str
-            开始日期
+            Start date
         end_date : str
-            结束日期
+            End date
 
         Returns
         -------
         str
-            缓存文件名
+            Cache filename
         """
-        # 对tickers排序以确保一致性
+        # Sort tickers to ensure consistency
         tickers_sorted = sorted(tickers)
-        tickers_str = "_".join(tickers_sorted[:5])  # 只用前5个ticker避免文件名过长
+        tickers_str = "_".join(tickers_sorted[:5])  # Only use first 5 tickers to avoid long filenames
 
-        # 生成hash
+        # Generate hash
         hash_input = f"{market}_{universe}_{len(tickers)}_{start_date}_{end_date}"
         hash_suffix = hashlib.md5(hash_input.encode()).hexdigest()[:8]
 
@@ -75,29 +75,29 @@ class CacheManager:
         return cache_key
 
     def _get_cache_path(self, cache_key: str) -> Path:
-        """获取缓存文件路径"""
+        """Get cache file path"""
         return self.cache_dir / f"{cache_key}.parquet"
 
     def _is_cache_valid(self, cache_path: Path, expiry_days: int = CACHE_EXPIRY_DAYS) -> bool:
         """
-        检查缓存是否有效
+        Check if cache is valid
 
         Parameters
         ----------
         cache_path : Path
-            缓存文件路径
+            Cache file path
         expiry_days : int
-            过期天数
+            Expiry days
 
         Returns
         -------
         bool
-            缓存是否有效
+            Whether cache is valid
         """
         if not cache_path.exists():
             return False
 
-        # 检查文件修改时间
+        # Check file modification time
         mtime = datetime.fromtimestamp(cache_path.stat().st_mtime)
         age = datetime.now() - mtime
 
@@ -109,19 +109,19 @@ class CacheManager:
 
     def save(self, data: pd.DataFrame, cache_key: str) -> Path:
         """
-        保存数据到缓存
+        Save data to cache
 
         Parameters
         ----------
         data : pd.DataFrame
-            要缓存的数据
+            Data to cache
         cache_key : str
-            缓存键
+            Cache key
 
         Returns
         -------
         Path
-            缓存文件路径
+            Cache file path
         """
         cache_path = self._get_cache_path(cache_key)
 
@@ -141,17 +141,17 @@ class CacheManager:
 
     def load(self, cache_key: str) -> Optional[pd.DataFrame]:
         """
-        从缓存加载数据
+        Load data from cache
 
         Parameters
         ----------
         cache_key : str
-            缓存键
+            Cache key
 
         Returns
         -------
         pd.DataFrame or None
-            缓存的数据，如果不存在或过期返回None
+            Cached data, returns None if not exists or expired
         """
         cache_path = self._get_cache_path(cache_key)
 
@@ -178,57 +178,57 @@ class CacheManager:
         force_refresh: bool = False
     ) -> pd.DataFrame:
         """
-        获取缓存数据，如果不存在则从API获取
+        Get cached data, or fetch from API if not exists
 
         Parameters
         ----------
         market : str
-            市场类型
+            Market type
         universe : str
-            股票池名称
+            Stock universe name
         tickers : List[str]
-            股票代码列表
+            List of ticker symbols
         start_date : str
-            开始日期
+            Start date
         end_date : str
-            结束日期
+            End date
         fetcher : YFinanceFetcher
-            数据获取器实例
+            Data fetcher instance
         force_refresh : bool
-            是否强制刷新缓存
+            Whether to force refresh cache
 
         Returns
         -------
         pd.DataFrame
-            股票数据
+            Stock data
         """
         cache_key = self._generate_cache_key(market, universe, tickers, start_date, end_date)
 
-        # 尝试从缓存加载
+        # Try to load from cache
         if not force_refresh:
             cached_data = self.load(cache_key)
             if cached_data is not None:
                 logger.info(f"Using cached data for {market} {universe}")
                 return cached_data
 
-        # 从API获取
+        # Fetch from API
         logger.info(f"Fetching fresh data for {market} {universe}")
         data = fetcher.fetch_in_batches(tickers, start_date, end_date)
 
         if not data.empty:
-            # 保存到缓存
+            # Save to cache
             self.save(data, cache_key)
 
         return data
 
     def clear_cache(self, older_than_days: Optional[int] = None):
         """
-        清理缓存
+        Clear cache
 
         Parameters
         ----------
         older_than_days : int, optional
-            清理多少天前的缓存，None表示清理所有
+            Clear cache older than N days, None means clear all
         """
         logger.info(f"Clearing cache in {self.cache_dir}")
 
@@ -258,12 +258,12 @@ class CacheManager:
 
     def get_cache_info(self) -> dict:
         """
-        获取缓存信息
+        Get cache information
 
         Returns
         -------
         dict
-            缓存统计信息
+            Cache statistics
         """
         cache_files = list(self.cache_dir.glob("*.parquet"))
 
@@ -288,17 +288,17 @@ class CacheManager:
 
 
 if __name__ == "__main__":
-    # 测试代码
+    # Test code
     from src.data.fetcher import YFinanceFetcher
 
-    # 配置日志
+    # Configure logging
     logger.add("cache_manager.log", rotation="10 MB")
 
-    # 初始化
+    # Initialize
     cache_manager = CacheManager()
     fetcher = YFinanceFetcher()
 
-    # 测试缓存
+    # Test cache
     test_tickers = ["AAPL", "MSFT", "GOOGL"]
     market = "US"
     universe = "test"

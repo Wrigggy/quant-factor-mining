@@ -1,68 +1,68 @@
-# 美股/港股多因子量化投资系统
+# US/HK Stock Multi-Factor Quantitative Investment System
 
 A comprehensive quantitative investment framework for US and Hong Kong stock markets, focusing on multi-factor mining and portfolio optimization.
 
-## 项目概述 (Project Overview)
+## Project Overview
 
-本项目实现了一个完整的量化研究框架，用于：
-- **Alpha因子挖掘**：动量、均值回归、波动率等多因子构建
-- **因子有效性评估**：使用Alphalens进行IC分析和分位数收益分析
-- **投资组合优化**：基于CVXPY的均值-方差优化
-- **回测分析**：考虑交易成本的完整回测系统
+This project implements a complete quantitative research framework for:
+- **Alpha Factor Mining**: Momentum, mean reversion, volatility and other multi-factor construction
+- **Factor Effectiveness Evaluation**: IC analysis and quantile return analysis using Alphalens
+- **Portfolio Optimization**: Mean-variance optimization based on CVXPY
+- **Backtesting Analysis**: Complete backtesting system considering transaction costs
 
-## 特性 (Features)
+## Features
 
-### 核心功能
-- ✅ **数据基础设施**：yfinance API集成，速率限制，Parquet缓存
-- ✅ **数据质量控制**：复权处理、异常值检测、缺失值处理、Winsorize
-- ✅ **模块化因子系统**：统一的因子基类，易于扩展（12个因子实现）
-- ✅ **业界标准评估**：Alphalens集成，IC分析，分位数收益
-- ✅ **凸优化器**：CVXPY实现，多种协方差估计方法
-- ✅ **完整回测**：交易成本、换手率、绩效指标
+### Core Features
+- ✅ **Data Infrastructure**: yfinance API integration, rate limiting, Parquet caching
+- ✅ **Data Quality Control**: Adjusted prices, outlier detection, missing value handling, Winsorize
+- ✅ **Modular Factor System**: Unified factor base class, easy to extend (12 factors implemented)
+- ✅ **Industry Standard Evaluation**: Alphalens integration, IC analysis, quantile returns
+- ✅ **Convex Optimizer**: CVXPY implementation, multiple covariance estimation methods
+- ✅ **Complete Backtesting**: Transaction costs, turnover, performance metrics
 
-### 🆕 自适应功能（v1.0）
-- ✅ **IC加权动态因子组合**：自动调整因子权重，基于滚动IC表现
-- ✅ **市场状态检测**：识别趋势市/均值回归市/高波动市，自适应调整策略
-- ✅ **避免前视偏差**：延迟IC更新机制，确保无lookahead bias
-- ✅ **权重演化追踪**：可视化因子权重随时间的变化
+### 🆕 Adaptive Features (v1.0)
+- ✅ **IC-Weighted Dynamic Factor Combination**: Automatically adjusts factor weights based on rolling IC performance
+- ✅ **Market Regime Detection**: Identifies trending/mean-reverting/high-volatility markets, adaptively adjusts strategy
+- ✅ **Avoid Look-Ahead Bias**: Delayed IC update mechanism ensures no lookahead bias
+- ✅ **Weight Evolution Tracking**: Visualizes factor weight changes over time
 
-### 🚧 即将发布
-- 🚧 **参数优化框架**：网格搜索、贝叶斯优化、Walk-forward分析
-- 🚧 **机器学习集成**：XGBoost/LightGBM非线性因子组合
-- 🚧 **性能跟踪系统**：SQLite数据库，自动监控因子衰减
+### 🚧 Coming Soon
+- 🚧 **Parameter Optimization Framework**: Grid search, Bayesian optimization, Walk-forward analysis
+- 🚧 **Machine Learning Integration**: XGBoost/LightGBM non-linear factor combination
+- 🚧 **Performance Tracking System**: SQLite database, automatic factor decay monitoring
 
-## 项目结构
+## Project Structure
 
 ```
 quant-factor-mining/
-├── config/                     # 配置管理
-│   ├── settings.py            # 全局参数
-│   └── universes.py           # 股票池定义
+├── config/                     # Configuration management
+│   ├── settings.py            # Global parameters
+│   └── universes.py           # Stock universe definitions
 │
-├── src/                       # 核心库
-│   ├── data/                  # 数据模块
-│   │   ├── fetcher.py         # yfinance数据获取
-│   │   ├── preprocessor.py    # 数据预处理
-│   │   └── cache_manager.py   # 本地缓存
+├── src/                       # Core library
+│   ├── data/                  # Data module
+│   │   ├── fetcher.py         # yfinance data fetching
+│   │   ├── preprocessor.py    # Data preprocessing
+│   │   └── cache_manager.py   # Local caching
 │   │
-│   ├── factors/               # 因子模块
-│   │   ├── base.py           # 抽象基类
-│   │   ├── momentum.py       # 动量因子
-│   │   ├── mean_reversion.py # 均值回归因子
-│   │   ├── volatility.py     # 波动率因子
-│   │   ├── composite.py      # 多因子组合
-│   │   └── adaptive_composite.py  # 🆕 自适应因子组合
+│   ├── factors/               # Factor module
+│   │   ├── base.py           # Abstract base class
+│   │   ├── momentum.py       # Momentum factors
+│   │   ├── mean_reversion.py # Mean reversion factors
+│   │   ├── volatility.py     # Volatility factors
+│   │   ├── composite.py      # Multi-factor combination
+│   │   └── adaptive_composite.py  # 🆕 Adaptive factor combination
 │   │
-│   ├── evaluation/            # 因子评估模块
-│   │   ├── alphalens_wrapper.py  # Alphalens集成
-│   │   └── ic_analysis.py        # IC分析
+│   ├── evaluation/            # Factor evaluation module
+│   │   ├── alphalens_wrapper.py  # Alphalens integration
+│   │   └── ic_analysis.py        # IC analysis
 │   │
-│   └── optimization/          # 组合优化模块
-│       ├── mean_variance.py   # 均值-方差优化
-│       ├── risk_models.py     # 协方差矩阵估计
-│       └── backtester.py      # 回测引擎
+│   └── optimization/          # Portfolio optimization module
+│       ├── mean_variance.py   # Mean-variance optimization
+│       ├── risk_models.py     # Covariance matrix estimation
+│       └── backtester.py      # Backtesting engine
 │
-├── notebooks/                 # Jupyter交互式研究
+├── notebooks/                 # Jupyter interactive research
 │   ├── 01_data_acquisition.ipynb
 │   ├── 02_exploratory_analysis.ipynb
 │   ├── 03_factor_construction.ipynb
@@ -70,43 +70,43 @@ quant-factor-mining/
 │   ├── 05_portfolio_optimization.ipynb
 │   └── 06_backtest_analysis.ipynb
 │
-└── data/                      # 本地数据存储
-    ├── raw/                   # 原始数据（缓存）
-    ├── processed/             # 清洗后数据
-    └── factors/               # 因子值
+└── data/                      # Local data storage
+    ├── raw/                   # Raw data (cached)
+    ├── processed/             # Cleaned data
+    └── factors/               # Factor values
 ```
 
-## 快速开始 (Quick Start)
+## Quick Start
 
-### 1. 安装依赖
+### 1. Install Dependencies
 
 ```bash
 cd /Users/kevinwu/Coding/quant-factor-mining
 pip install -r requirements.txt
 ```
 
-### 2. 运行完整演示
+### 2. Run Complete Demo
 
 ```bash
-# 查看完整工作流（数据→因子→评估→优化→回测）
+# View complete workflow (data→factors→evaluation→optimization→backtest)
 python demo.py
 
-# 测试所有模块
+# Test all modules
 python test_system.py
 
-# 🆕 测试自适应因子系统（推荐）
+# 🆕 Test adaptive factor system (recommended)
 python examples/demo_adaptive_composite.py
 ```
 
-### 3. Jupyter研究环境
+### 3. Jupyter Research Environment
 
 ```bash
 jupyter lab notebooks/01_data_acquisition.ipynb
 ```
 
-### 4. 基本用法示例
+### 4. Basic Usage Examples
 
-#### 最简示例（5行代码）
+#### Minimal Example (5 lines of code)
 ```python
 from src.data.cache_manager import CacheManager
 from src.data.fetcher import YFinanceFetcher
@@ -117,9 +117,9 @@ momentum = MomentumFactor().compute(data, normalize=True)
 print(momentum.groupby(level='ticker').last())
 ```
 
-#### 完整工作流
+#### Complete Workflow
 ```python
-# 步骤1: 数据获取
+# Step 1: Data Acquisition
 from src.data.fetcher import YFinanceFetcher
 from src.data.cache_manager import CacheManager
 from src.data.preprocessor import DataPreprocessor
@@ -129,20 +129,20 @@ cache = CacheManager()
 data = cache.get_or_fetch("US", "sp500", ["AAPL", "MSFT", "GOOGL"], "2020-01-01", "2024-01-01", fetcher)
 clean_data, report = DataPreprocessor().validate_data_quality(data)
 
-# 步骤2: 计算因子
+# Step 2: Calculate Factors
 from src.factors.momentum import MomentumFactor
 momentum = MomentumFactor(lookback=252, skip=21)
 factor_values = momentum.compute(clean_data, normalize=True)
 
-# 步骤3: 评估因子
+# Step 3: Evaluate Factors
 from src.evaluation.ic_analysis import ICAnalyzer
 analyzer = ICAnalyzer()
 forward_returns = analyzer.compute_forward_returns(clean_data, [21])
 ic_series = analyzer.compute_ic_series(factor_values, forward_returns[21])
 ic_stats = analyzer.compute_ic_statistics(ic_series)
-print(f"IC均值: {ic_stats['mean']:.4f}, t-stat: {ic_stats['t_stat']:.2f}")
+print(f"IC Mean: {ic_stats['mean']:.4f}, t-stat: {ic_stats['t_stat']:.2f}")
 
-# 步骤4: 组合优化
+# Step 4: Portfolio Optimization
 from src.optimization.risk_models import CovarianceEstimator
 from src.optimization.mean_variance import MeanVarianceOptimizer
 
@@ -152,7 +152,7 @@ cov_matrix = CovarianceEstimator(method='ledoit_wolf').estimate(returns, window=
 optimal_weights = MeanVarianceOptimizer(max_position=0.15).optimize(latest_factors, cov_matrix)
 print(optimal_weights.sort_values(ascending=False).head())
 
-# 步骤5: 回测
+# Step 5: Backtesting
 from src.optimization.backtester import PortfolioBacktester, create_simple_momentum_strategy
 backtester = PortfolioBacktester(initial_capital=1_000_000, transaction_cost=0.001)
 strategy = create_simple_momentum_strategy(lookback=252, skip=21, n_stocks=5)
@@ -161,136 +161,136 @@ metrics = backtester.calculate_performance_metrics(results)
 backtester.print_performance_report(metrics)
 ```
 
-**详细教程请参考**: `QUICKSTART.md`
+**For detailed tutorials, see**: `QUICKSTART.md`
 
-## 实现的因子 (Implemented Factors)
+## Implemented Factors
 
-### 1. 动量因子 (Momentum)
-- **公式**: `Momentum(t) = [P(t-21) / P(t-273)] - 1`
-- **参数**: 12个月回看期，跳过最后1个月
-- **学术依据**: Jegadeesh & Titman (1993)
+### 1. Momentum Factor
+- **Formula**: `Momentum(t) = [P(t-21) / P(t-273)] - 1`
+- **Parameters**: 12-month lookback period, skip last 1 month
+- **Academic Reference**: Jegadeesh & Titman (1993)
 
-### 2. 均值回归因子 (Mean Reversion)
-- **公式**: `MeanReversion(t) = -1 × [(P(t) / P(t-21)) - 1]`
-- **参数**: 1个月回看期
-- **学术依据**: Jegadeesh (1990)
+### 2. Mean Reversion Factor
+- **Formula**: `MeanReversion(t) = -1 × [(P(t) / P(t-21)) - 1]`
+- **Parameters**: 1-month lookback period
+- **Academic Reference**: Jegadeesh (1990)
 
-### 3. 波动率因子 (Low Volatility)
-- **公式**: `Volatility(t) = -1 × std(returns[t-63:t]) × √252`
-- **参数**: 3个月滚动窗口，年化
-- **学术依据**: Ang et al. (2006)
+### 3. Volatility Factor (Low Volatility)
+- **Formula**: `Volatility(t) = -1 × std(returns[t-63:t]) × √252`
+- **Parameters**: 3-month rolling window, annualized
+- **Academic Reference**: Ang et al. (2006)
 
-## 因子评估标准
+## Factor Evaluation Criteria
 
-使用Alphalens评估因子有效性：
-- **IC均值** > 0.02
-- **IC t统计量** > 2.0
-- **IC一致性** > 60% (正值月份占比)
-- **分位数收益率**单调递增 (Q5 > Q4 > Q3 > Q2 > Q1)
+Using Alphalens to evaluate factor effectiveness:
+- **IC Mean** > 0.02
+- **IC t-statistic** > 2.0
+- **IC Consistency** > 60% (percentage of positive months)
+- **Quantile Returns** monotonically increasing (Q5 > Q4 > Q3 > Q2 > Q1)
 
-## 投资组合优化
+## Portfolio Optimization
 
-### 均值-方差优化 (Markowitz)
+### Mean-Variance Optimization (Markowitz)
 
 ```
 maximize: w^T μ - λ × w^T Σ w
 
-约束条件：
-- Σ w_i = 1                     (满仓)
-- w_i >= 0                      (仅多头)
-- w_i <= 0.05                   (单只股票最大5%)
-- Σ |w_i - w_i,prev| <= 0.5     (月度换手率<=50%)
+Constraints:
+- Σ w_i = 1                     (fully invested)
+- w_i >= 0                      (long only)
+- w_i <= 0.05                   (max 5% per stock)
+- Σ |w_i - w_i,prev| <= 0.5     (monthly turnover <= 50%)
 ```
 
-### 协方差矩阵估计方法
-1. **样本协方差** - 基准方法
-2. **Ledoit-Wolf收缩** - 推荐用于高维数据
-3. **因子模型** - 基于因子分解
+### Covariance Matrix Estimation Methods
+1. **Sample Covariance** - Baseline method
+2. **Ledoit-Wolf Shrinkage** - Recommended for high-dimensional data
+3. **Factor Model** - Based on factor decomposition
 
-## 回测配置
+## Backtesting Configuration
 
-- **初始资金**: $1,000,000
-- **调仓频率**: 21天 (月度)
-- **交易成本**: 10 bps 单边
-- **无风险利率**: 2% (年化)
+- **Initial Capital**: $1,000,000
+- **Rebalancing Frequency**: 21 days (monthly)
+- **Transaction Cost**: 10 bps one-way
+- **Risk-Free Rate**: 2% (annualized)
 
-### 绩效指标
-- 夏普比率 (Sharpe Ratio)
-- 索提诺比率 (Sortino Ratio)
-- 最大回撤 (Max Drawdown)
-- 卡玛比率 (Calmar Ratio)
-- 平均换手率
+### Performance Metrics
+- Sharpe Ratio
+- Sortino Ratio
+- Maximum Drawdown
+- Calmar Ratio
+- Average Turnover
 
-## 实施状态
+## Implementation Status
 
-### ✅ Phase 1: 数据基础设施 (COMPLETE)
-- [x] 配置文件
-- [x] 数据获取器 (yfinance)
-- [x] 数据预处理器
-- [x] 缓存管理器
-- [x] Notebook 01: 数据获取
+### ✅ Phase 1: Data Infrastructure (COMPLETE)
+- [x] Configuration files
+- [x] Data fetcher (yfinance)
+- [x] Data preprocessor
+- [x] Cache manager
+- [x] Notebook 01: Data acquisition
 
-### ✅ Phase 2: 因子构建 (COMPLETE)
-- [x] 因子基类
-- [x] 动量因子 (3个变种)
-- [x] 均值回归因子 (4个变种)
-- [x] 波动率因子 (5个变种)
-- [x] 综合测试
+### ✅ Phase 2: Factor Construction (COMPLETE)
+- [x] Factor base class
+- [x] Momentum factors (3 variants)
+- [x] Mean reversion factors (4 variants)
+- [x] Volatility factors (5 variants)
+- [x] Comprehensive testing
 
-### ✅ Phase 3: 因子评估 (COMPLETE)
-- [x] Alphalens集成
-- [x] IC深度分析
-- [x] 因子有效性验证
-- [x] 分位数收益分析
+### ✅ Phase 3: Factor Evaluation (COMPLETE)
+- [x] Alphalens integration
+- [x] IC deep analysis
+- [x] Factor effectiveness validation
+- [x] Quantile return analysis
 
-### ✅ Phase 4: 组合优化 (COMPLETE)
-- [x] 风险模型 (5种协方差估计)
-- [x] 均值-方差优化器
-- [x] 最大夏普/最小方差优化器
-- [x] 有效前沿计算
+### ✅ Phase 4: Portfolio Optimization (COMPLETE)
+- [x] Risk models (5 covariance estimation methods)
+- [x] Mean-variance optimizer
+- [x] Max Sharpe/Min variance optimizers
+- [x] Efficient frontier calculation
 
-### ✅ Phase 5: 回测 (COMPLETE)
-- [x] 回测引擎
-- [x] 交易成本模型
-- [x] 绩效指标计算
-- [x] 系统集成测试
+### ✅ Phase 5: Backtesting (COMPLETE)
+- [x] Backtesting engine
+- [x] Transaction cost model
+- [x] Performance metrics calculation
+- [x] System integration testing
 
-**状态: 100% COMPLETE - 生产就绪 ✅**
+**Status: 100% COMPLETE - Production Ready ✅**
 
-## 技术栈
+## Technology Stack
 
-- **数据处理**: pandas, numpy, scipy
-- **数据获取**: yfinance
-- **因子分析**: alphalens-reloaded
-- **优化**: cvxpy, scikit-learn
-- **可视化**: matplotlib, seaborn
+- **Data Processing**: pandas, numpy, scipy
+- **Data Acquisition**: yfinance
+- **Factor Analysis**: alphalens-reloaded
+- **Optimization**: cvxpy, scikit-learn
+- **Visualization**: matplotlib, seaborn
 - **Notebook**: jupyterlab
 
-## 数据质量控制
+## Data Quality Control
 
-- ✅ 复权价格处理
-- ✅ 负价格检测
-- ✅ High < Low检测
-- ✅ 极端收益率检测 (>100%)
-- ✅ 缺失值处理 (前向填充)
-- ✅ Winsorize (1%-99%分位数)
+- ✅ Adjusted price handling
+- ✅ Negative price detection
+- ✅ High < Low detection
+- ✅ Extreme return detection (>100%)
+- ✅ Missing value handling (forward fill)
+- ✅ Winsorize (1%-99% quantiles)
 
-## 测试与验证
+## Testing and Validation
 
-### 运行测试
+### Run Tests
 
 ```bash
-# 测试单个因子模块
+# Test individual factor modules
 python test_factors.py
 
-# 测试完整系统（5个阶段）
+# Test complete system (5 phases)
 python test_system.py
 
-# 运行完整演示
+# Run complete demo
 python demo.py
 ```
 
-### 期望输出
+### Expected Output
 
 ```
 ✅ ALL PHASES COMPLETED SUCCESSFULLY
@@ -302,34 +302,34 @@ python demo.py
 🎉 System is ready for production use!
 ```
 
-## 文档
+## Documentation
 
-- **README.md** - 项目概述（本文件）
-- **QUICKSTART.md** - 快速开始指南（含完整示例）
-- **IMPLEMENTATION_STATUS.md** - 实现进度（100%完成）
-- **PROJECT_SUMMARY.md** - 项目总结（详细技术文档）
-- **demo.py** - 完整工作流演示脚本
+- **README.md** - Project overview (this file)
+- **QUICKSTART.md** - Quick start guide (with complete examples)
+- **IMPLEMENTATION_STATUS.md** - Implementation progress (100% complete)
+- **PROJECT_SUMMARY.md** - Project summary (detailed technical documentation)
+- **demo.py** - Complete workflow demo script
 
-## 注意事项
+## Important Notes
 
-1. **API限制**: yfinance有速率限制（2000 req/hr），系统已实现自动限流
-2. **数据质量**: 免费数据源可能存在缺失和延迟，建议实盘前验证
-3. **研究用途**: 本项目仅用于学术研究和教育，不构成投资建议
-4. **交易成本**: 默认10 bps，实盘成本可能更高（滑点、冲击成本）
-5. **风险管理**: 系统未包含止损等风控功能，实盘需自行添加
+1. **API Limits**: yfinance has rate limits (2000 req/hr), system implements automatic rate limiting
+2. **Data Quality**: Free data sources may have gaps and delays, validate before live trading
+3. **Research Purpose**: This project is for academic research and education only, not investment advice
+4. **Transaction Costs**: Default 10 bps, actual costs may be higher (slippage, market impact)
+5. **Risk Management**: System does not include stop-loss and other risk controls, add them for live trading
 
 ## License
 
 MIT License
 
-## 致谢
+## Acknowledgments
 
-本项目基于以下学术研究和开源工具：
-- Jegadeesh & Titman (1993) - 动量效应
-- Ang et al. (2006) - 低波动率异象
-- Alphalens - 因子分析框架
-- CVXPY - 凸优化库
+This project is based on the following academic research and open-source tools:
+- Jegadeesh & Titman (1993) - Momentum effect
+- Ang et al. (2006) - Low volatility anomaly
+- Alphalens - Factor analysis framework
+- CVXPY - Convex optimization library
 
 ---
 
-**免责声明**: 本项目仅供学习和研究使用，不构成任何投资建议。投资有风险，入市需谨慎。
+**Disclaimer**: This project is for learning and research purposes only and does not constitute any investment advice. Investing involves risks, please be cautious.

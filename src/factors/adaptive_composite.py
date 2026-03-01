@@ -110,11 +110,14 @@ class AdaptiveCompositeFactor(BaseFactor):
         for factor in self.factors:
             composite += factor_values[factor.name] * weights[factor.name]
 
-        # 4. 记录权重历史
+        # 4. 记录权重历史（保留最近 ic_window * 2 条）
         self.weight_history.append({
             'date': current_date,
             'weights': weights.copy()
         })
+        max_weight_history = self.ic_window * 2
+        if len(self.weight_history) > max_weight_history:
+            self.weight_history = self.weight_history[-max_weight_history:]
 
         logger.debug(f"日期{current_date}的因子权重：{weights}")
 
@@ -236,6 +239,13 @@ class AdaptiveCompositeFactor(BaseFactor):
         self.ic_history[factor_name].append((date, ic_value))
         logger.debug(f"更新{factor_name}的IC历史：日期={date}, IC={ic_value:.4f}")
 
+        # Prune IC history to keep only recent values (ic_window * 2 for safety margin)
+        max_ic_history = self.ic_window * 2
+        if len(self.ic_history[factor_name]) > max_ic_history:
+            excess = len(self.ic_history[factor_name]) - max_ic_history
+            self.ic_history[factor_name] = self.ic_history[factor_name][excess:]
+            logger.debug(f"Pruned {excess} old IC values for {factor_name}, keeping last {max_ic_history}")
+
     def get_weight_history(self) -> pd.DataFrame:
         """
         获取权重演化历史
@@ -323,6 +333,9 @@ class AdaptiveCompositeManager:
         self.factor_buffer: List[tuple] = []  # (date, factor_values_dict)
         self.price_buffer: List[tuple] = []   # (date, prices)
 
+        # Tracks consecutive IC skip count per factor for stale-weight alerting
+        self._ic_skip_count: Dict[str, int] = {}
+
         logger.info(f"AdaptiveCompositeManager初始化：forward_period={forward_period}天")
 
     def compute_factor_with_update(
@@ -388,6 +401,16 @@ class AdaptiveCompositeManager:
                 }).dropna()
 
                 if len(aligned) < 10:
+                    logger.warning(
+                        f"IC calculation skipped for {factor_name} on {past_date}: "
+                        f"insufficient aligned data ({len(aligned)} < 10 stocks)"
+                    )
+                    self._ic_skip_count[factor_name] = self._ic_skip_count.get(factor_name, 0) + 1
+                    if self._ic_skip_count[factor_name] >= self.forward_period:
+                        logger.error(
+                            f"Factor {factor_name} IC has not updated for "
+                            f"{self._ic_skip_count[factor_name]} consecutive periods — weights are stale!"
+                        )
                     continue
 
                 # Spearman IC
@@ -398,6 +421,16 @@ class AdaptiveCompositeManager:
                 self.adaptive_factor.update_ic_history(
                     factor_name, past_date, ic_value
                 )
+                self._ic_skip_count[factor_name] = 0
+
+            # 4. 清理旧的缓冲区数据（保留forward_period + ic_window天）
+            max_buffer_size = self.forward_period + self.adaptive_factor.ic_window + 10
+            if len(self.factor_buffer) > max_buffer_size:
+                # 删除最旧的数据
+                excess = len(self.factor_buffer) - max_buffer_size
+                self.factor_buffer = self.factor_buffer[excess:]
+                self.price_buffer = self.price_buffer[excess:]
+                logger.debug(f"Cleaned up {excess} old buffer entries, keeping last {max_buffer_size} days")
 
         # 4. 使用当前权重计算组合因子
         composite_factor = self.adaptive_factor.calculate(data)
@@ -553,6 +586,9 @@ class RegimeAwareCompositeFactor(AdaptiveCompositeFactor):
         # 2. 检测当前市场状态
         regime = self.regime_detector.detect_regime(self.market_returns)
         self.regime_history.append((current_date, regime))
+        max_regime_history = self.ic_window * 2
+        if len(self.regime_history) > max_regime_history:
+            self.regime_history = self.regime_history[-max_regime_history:]
 
         logger.info(f"日期{current_date}市场状态：{regime}")
 
