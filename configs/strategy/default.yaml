@@ -1,0 +1,37 @@
+# Default internship-ready strategy config
+
+data:
+  mode: snapshot
+  snapshot_path: data/processed/us_equities_snapshot.parquet
+  start_date: "2018-01-01"
+  end_date: "2024-12-31"
+  seed: 42
+  max_ffill_days: 3
+  tickers:
+    - AAPL
+    - MSFT
+    - NVDA
+    - AMZN
+    - META
+    - GOOGL
+    - TSLA
+    - JPM
+    - XOM
+    - JNJ
+
+factors:
+  momentum_lookback: 252
+  momentum_skip: 21
+  mean_reversion_lookback: 21
+  volatility_window: 63
+
+research:
+  train_size: 504
+  test_size: 126
+  top_n: 5
+  rebalance_frequency: 21
+  transaction_cost_bps: 10.0
+  initial_capital: 1000000
+
+run:
+  output_root: artifacts/runs

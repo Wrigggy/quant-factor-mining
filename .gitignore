@@ -39,6 +39,8 @@ data/factors/
 
 # Output files
 outputs/
+artifacts/runs/*
+!artifacts/runs/.gitkeep
 
 # Environment variables
 .env
@@ -57,3 +59,6 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Test cache
+.pytest_cache/
