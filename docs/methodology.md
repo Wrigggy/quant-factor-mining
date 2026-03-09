@@ -12,8 +12,10 @@ Build a reproducible multi-factor research pipeline for internship demonstration
    - Train window estimates factor weights by train-period IC means.
    - Test window applies fixed train weights only.
    - Backtest uses signal-at-`t` and execute-from-`t+1` timing.
-6. Compute benchmark-relative attribution for each fold (alpha, beta, tracking error, IR).
-7. Persist artifacts (metrics, fold table, equity curve, config snapshot, report).
+6. Optionally reserve untouched final holdout period and evaluate once after selection.
+7. Compute benchmark-relative attribution for each fold (alpha, beta, tracking error, IR).
+8. Optionally bootstrap confidence intervals for alpha annualized and information ratio.
+9. Persist artifacts (metrics, fold table, equity curve, config snapshot, report).
 
 ## Leakage Controls
 - No future data in train/test split.
@@ -21,8 +23,12 @@ Build a reproducible multi-factor research pipeline for internship demonstration
 - No dynamic test-period refit inside each fold.
 
 ## Cost Model
-- Linear turnover cost in basis points.
-- Cost applied on rebalance dates.
+- Baseline linear turnover cost in basis points.
+- Optional liquidity/slippage model:
+  - commission + half-spread base
+  - impact linked to participation ratio
+  - cap-breach penalty beyond participation limit
+- Cost is applied on rebalance dates.
 
 ## Limitations
 - Uses simple equal-weight top-N construction.

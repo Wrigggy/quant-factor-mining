@@ -16,6 +16,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from qfm.backtest.costs import LiquidityCostModel
 from qfm.backtest.engine import run_backtest_from_scores
 from qfm.backtest.metrics import compute_performance_metrics
 from qfm.backtest.benchmarks import equal_weight_benchmark
@@ -69,19 +70,31 @@ def main() -> None:
     score = matrix.mean(axis=1).unstack("ticker")
 
     prices = close_prices_wide(clean_data)
+    volumes = clean_data["volume"].unstack("ticker").reindex(prices.index).sort_index()
     asset_returns = prices.pct_change().fillna(0.0)
+    research_cfg = cfg.get("research", {})
+    liquidity_model = LiquidityCostModel.from_dict(research_cfg.get("liquidity_model", {}))
 
     bt = run_backtest_from_scores(
         scores=score,
         asset_returns=asset_returns,
-        top_n=int(cfg.get("research", {}).get("top_n", 20)),
-        rebalance_frequency=int(cfg.get("research", {}).get("rebalance_frequency", 21)),
-        transaction_cost_bps=float(cfg.get("research", {}).get("transaction_cost_bps", 10.0)),
-        initial_capital=float(cfg.get("research", {}).get("initial_capital", 1_000_000)),
+        top_n=int(research_cfg.get("top_n", 20)),
+        rebalance_frequency=int(research_cfg.get("rebalance_frequency", 21)),
+        transaction_cost_bps=float(research_cfg.get("transaction_cost_bps", 10.0)),
+        initial_capital=float(research_cfg.get("initial_capital", 1_000_000)),
+        execution_prices=prices,
+        execution_volumes=volumes,
+        liquidity_cost_model=liquidity_model,
     )
 
     benchmark = equal_weight_benchmark(asset_returns).reindex(bt.index)
-    metrics = compute_performance_metrics(bt, benchmark_returns=benchmark)
+    metrics = compute_performance_metrics(
+        bt,
+        benchmark_returns=benchmark,
+        bootstrap_samples=int(research_cfg.get("bootstrap_samples", 0)),
+        bootstrap_ci_level=float(research_cfg.get("bootstrap_ci_level", 0.95)),
+        bootstrap_seed=int(research_cfg.get("bootstrap_seed", 42)),
+    )
 
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_backtest"
     out_dir = Path(cfg.get("run", {}).get("output_root", "artifacts/runs")) / run_id
@@ -96,6 +109,16 @@ def main() -> None:
     print(f"Sharpe: {metrics['sharpe']:.4f}")
     print(f"Alpha (annual): {metrics['alpha_annual']:.4f}")
     print(f"Information ratio: {metrics['information_ratio']:.4f}")
+    if "alpha_annual_ci_low" in metrics:
+        print(
+            "Alpha CI "
+            f"[{metrics['alpha_annual_ci_low']:.4f}, {metrics['alpha_annual_ci_high']:.4f}]"
+        )
+    if "information_ratio_ci_low" in metrics:
+        print(
+            "IR CI "
+            f"[{metrics['information_ratio_ci_low']:.4f}, {metrics['information_ratio_ci_high']:.4f}]"
+        )
 
 
 if __name__ == "__main__":

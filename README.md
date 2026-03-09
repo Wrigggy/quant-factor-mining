@@ -13,7 +13,9 @@ This project is designed for interview credibility:
 2. Walk-forward validation (train/test rolling windows).
 3. Cost-aware portfolio backtesting.
 4. Benchmark-relative attribution (alpha/beta/tracking error/information ratio).
-5. Reproducible outputs (metrics, equity curve, config snapshot, report).
+5. Bootstrap confidence intervals for attribution (alpha/IR).
+6. Nested selection with untouched holdout evaluation.
+7. Reproducible outputs (metrics, equity curve, config snapshot, report).
 
 ## Repository Structure
 
@@ -48,6 +50,10 @@ artifacts/runs/<timestamp>/
   fold_metrics.csv
   equity_curve.parquet
   metrics.json
+  holdout_metrics.json
+  holdout_equity_curve.parquet
+  nested_search_results.csv
+  selected_params.json
   report.md
 
 legacy/
@@ -108,7 +114,10 @@ python3 -m pytest -q
 - Signal at `t` is never applied to return at `t`.
 - Rebalance occurs at close of `t`; new weights are active from `t+1`.
 - Walk-forward folds estimate factor weights on train only, then evaluate on test.
-- Each run reports benchmark-relative metrics in addition to absolute performance.
+- Nested search ranks parameter sets on pre-holdout folds only.
+- Optional holdout window is untouched during parameter selection.
+- Attribution metrics can include bootstrap confidence intervals.
+- Cost model supports both linear bps and liquidity/slippage-aware mode.
 
 See:
 - `docs/methodology.md`
@@ -120,4 +129,4 @@ See:
 
 - This is a research framework, not production trading software.
 - Default mode uses synthetic snapshot for reproducibility.
-- Cost model is linear turnover bps; advanced impact models are out of scope for current baseline.
+- Cost model remains a proxy (not LOB simulation), even with liquidity/slippage extensions.

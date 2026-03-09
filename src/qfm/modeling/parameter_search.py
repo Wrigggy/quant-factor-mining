@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import product
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, List, Sequence
 
 import pandas as pd
 
+from qfm.backtest.costs import LiquidityCostModel
+from qfm.factors.base import BaseFactor
 from qfm.factors.mean_reversion import MeanReversionFactor
 from qfm.factors.momentum import MomentumFactor
 from qfm.factors.volatility import LowVolatilityFactor
@@ -28,6 +30,20 @@ DEFAULT_SPACE = SearchSpace(
 )
 
 
+def build_factor_set(
+    momentum_lookback: int,
+    mean_reversion_lookback: int,
+    volatility_window: int,
+    momentum_skip: int = 21,
+) -> List[BaseFactor]:
+    """Build canonical factor list for one parameter combination."""
+    return [
+        MomentumFactor(lookback=int(momentum_lookback), skip=int(momentum_skip)),
+        MeanReversionFactor(lookback=int(mean_reversion_lookback)),
+        LowVolatilityFactor(window=int(volatility_window)),
+    ]
+
+
 def grid_search(
     market_data: pd.DataFrame,
     search_space: SearchSpace = DEFAULT_SPACE,
@@ -37,6 +53,10 @@ def grid_search(
     rebalance_frequency: int = 21,
     transaction_cost_bps: float = 10.0,
     initial_capital: float = 1_000_000,
+    holdout_size: int = 0,
+    evaluate_holdout: bool = False,
+    liquidity_cost_model: LiquidityCostModel | None = None,
+    momentum_skip: int = 21,
 ) -> pd.DataFrame:
     """Run deterministic grid search and return ranked results."""
     rows: List[Dict[str, object]] = []
@@ -46,11 +66,12 @@ def grid_search(
         search_space.mean_reversion_lookback,
         search_space.volatility_window,
     ):
-        factors = [
-            MomentumFactor(lookback=mom_lb),
-            MeanReversionFactor(lookback=rev_lb),
-            LowVolatilityFactor(window=vol_win),
-        ]
+        factors = build_factor_set(
+            momentum_lookback=mom_lb,
+            mean_reversion_lookback=rev_lb,
+            volatility_window=vol_win,
+            momentum_skip=momentum_skip,
+        )
 
         result = run_walkforward_research(
             market_data=market_data,
@@ -61,6 +82,9 @@ def grid_search(
             rebalance_frequency=rebalance_frequency,
             transaction_cost_bps=transaction_cost_bps,
             initial_capital=initial_capital,
+            holdout_size=holdout_size,
+            evaluate_holdout=evaluate_holdout,
+            liquidity_cost_model=liquidity_cost_model,
         )
 
         aggregate = result["aggregate"]
@@ -71,6 +95,8 @@ def grid_search(
                 "volatility_window": vol_win,
                 "mean_fold_sharpe": aggregate["mean_fold_sharpe"],
                 "mean_fold_total_return": aggregate["mean_fold_total_return"],
+                "mean_fold_alpha_annual": aggregate["mean_fold_alpha_annual"],
+                "mean_fold_information_ratio": aggregate["mean_fold_information_ratio"],
                 "n_folds": aggregate["n_folds"],
             }
         )

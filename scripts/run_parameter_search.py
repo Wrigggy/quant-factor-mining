@@ -15,6 +15,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from qfm.backtest.costs import LiquidityCostModel
 from qfm.data.fetch import DEFAULT_SNAPSHOT_PATH, generate_synthetic_market_data, load_snapshot, save_snapshot
 from qfm.data.preprocess import preprocess_market_data
 from qfm.modeling.parameter_search import DEFAULT_SPACE, grid_search
@@ -44,16 +45,23 @@ def main() -> None:
         save_snapshot(data, snapshot_path)
 
     clean, _ = preprocess_market_data(data)
+    research_cfg = cfg.get("research", {})
+    factor_cfg = cfg.get("factors", {})
+    liquidity_model = LiquidityCostModel.from_dict(research_cfg.get("liquidity_model", {}))
 
     res = grid_search(
         market_data=clean,
         search_space=DEFAULT_SPACE,
-        train_size=int(cfg.get("research", {}).get("train_size", 504)),
-        test_size=int(cfg.get("research", {}).get("test_size", 126)),
-        top_n=int(cfg.get("research", {}).get("top_n", 5)),
-        rebalance_frequency=int(cfg.get("research", {}).get("rebalance_frequency", 21)),
-        transaction_cost_bps=float(cfg.get("research", {}).get("transaction_cost_bps", 10.0)),
-        initial_capital=float(cfg.get("research", {}).get("initial_capital", 1_000_000)),
+        train_size=int(research_cfg.get("train_size", 504)),
+        test_size=int(research_cfg.get("test_size", 126)),
+        top_n=int(research_cfg.get("top_n", 5)),
+        rebalance_frequency=int(research_cfg.get("rebalance_frequency", 21)),
+        transaction_cost_bps=float(research_cfg.get("transaction_cost_bps", 10.0)),
+        initial_capital=float(research_cfg.get("initial_capital", 1_000_000)),
+        holdout_size=int(research_cfg.get("holdout_size", 0)),
+        evaluate_holdout=False,
+        liquidity_cost_model=liquidity_model,
+        momentum_skip=int(factor_cfg.get("momentum_skip", 21)),
     )
 
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_gridsearch"

@@ -76,10 +76,60 @@ def compute_benchmark_attribution(
     }
 
 
+def bootstrap_benchmark_attribution_ci(
+    strategy_returns: pd.Series,
+    benchmark_returns: pd.Series,
+    risk_free_rate: float = 0.02,
+    n_bootstrap: int = 500,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+) -> Dict[str, float]:
+    """Bootstrap CI for alpha annualized and information ratio."""
+    aligned_strategy, aligned_benchmark = strategy_returns.align(benchmark_returns, join="inner")
+    aligned = pd.DataFrame({"strategy": aligned_strategy, "benchmark": aligned_benchmark}).dropna()
+
+    if aligned.empty or len(aligned) < 2 or n_bootstrap <= 0:
+        return {}
+
+    alpha_values = []
+    ir_values = []
+    rng = np.random.default_rng(random_state)
+    n = len(aligned)
+
+    values = aligned.to_numpy(dtype=float)
+    for _ in range(n_bootstrap):
+        sample_idx = rng.integers(0, n, size=n)
+        sample = values[sample_idx]
+        sample_strategy = pd.Series(sample[:, 0], index=range(n))
+        sample_benchmark = pd.Series(sample[:, 1], index=range(n))
+        sample_attr = compute_benchmark_attribution(
+            sample_strategy,
+            sample_benchmark,
+            risk_free_rate=risk_free_rate,
+        )
+        alpha_values.append(float(sample_attr["alpha_annual"]))
+        ir_values.append(float(sample_attr["information_ratio"]))
+
+    low_q = (1.0 - ci_level) / 2.0
+    high_q = 1.0 - low_q
+
+    return {
+        "alpha_annual_ci_low": float(np.quantile(alpha_values, low_q)),
+        "alpha_annual_ci_high": float(np.quantile(alpha_values, high_q)),
+        "information_ratio_ci_low": float(np.quantile(ir_values, low_q)),
+        "information_ratio_ci_high": float(np.quantile(ir_values, high_q)),
+        "bootstrap_samples": int(n_bootstrap),
+        "bootstrap_ci_level": float(ci_level),
+    }
+
+
 def compute_performance_metrics(
     backtest: pd.DataFrame,
     risk_free_rate: float = 0.02,
     benchmark_returns: Optional[pd.Series] = None,
+    bootstrap_samples: int = 0,
+    bootstrap_ci_level: float = 0.95,
+    bootstrap_seed: int = 42,
 ) -> Dict[str, float]:
     """Compute core performance metrics from backtest results."""
     if backtest.empty:
@@ -129,5 +179,16 @@ def compute_performance_metrics(
                 risk_free_rate=risk_free_rate,
             )
         )
+        if bootstrap_samples > 0:
+            metrics.update(
+                bootstrap_benchmark_attribution_ci(
+                    strategy_returns=returns,
+                    benchmark_returns=benchmark_returns,
+                    risk_free_rate=risk_free_rate,
+                    n_bootstrap=bootstrap_samples,
+                    ci_level=bootstrap_ci_level,
+                    random_state=bootstrap_seed,
+                )
+            )
 
     return metrics

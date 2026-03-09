@@ -5,12 +5,11 @@ Signal at date t is used to rebalance at the close of t and becomes active at t+
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Optional
 
-import numpy as np
 import pandas as pd
 
-from .costs import linear_transaction_cost
+from .costs import LiquidityCostModel, linear_transaction_cost, liquidity_transaction_cost
 
 
 def _target_weights_from_scores(score_row: pd.Series, top_n: int, universe: pd.Index) -> pd.Series:
@@ -35,6 +34,9 @@ def run_backtest_from_scores(
     rebalance_frequency: int = 21,
     transaction_cost_bps: float = 10.0,
     initial_capital: float = 1_000_000,
+    execution_prices: Optional[pd.DataFrame] = None,
+    execution_volumes: Optional[pd.DataFrame] = None,
+    liquidity_cost_model: Optional[LiquidityCostModel] = None,
 ) -> pd.DataFrame:
     """Run long-only strategy from score matrix without same-day look-ahead."""
     if scores.empty:
@@ -52,6 +54,16 @@ def run_backtest_from_scores(
 
     scores = scores.loc[common_dates, common_assets].sort_index()
     returns = asset_returns.loc[common_dates, common_assets].sort_index().fillna(0.0)
+    prices = (
+        execution_prices.reindex(index=common_dates, columns=common_assets).sort_index()
+        if execution_prices is not None
+        else None
+    )
+    volumes = (
+        execution_volumes.reindex(index=common_dates, columns=common_assets).sort_index()
+        if execution_volumes is not None
+        else None
+    )
 
     portfolio_value = float(initial_capital)
     active_weights = pd.Series(0.0, index=common_assets)
@@ -69,8 +81,19 @@ def run_backtest_from_scores(
 
         if i % rebalance_frequency == 0:
             target = _target_weights_from_scores(scores.loc[date], top_n=top_n, universe=common_assets)
-            turnover = float((target - active_weights).abs().sum())
-            cost_rate = linear_transaction_cost(turnover, transaction_cost_bps)
+            trade = target - active_weights
+            turnover = float(trade.abs().sum())
+
+            if liquidity_cost_model is not None and prices is not None and volumes is not None:
+                cost_rate = liquidity_transaction_cost(
+                    trade_weights=trade,
+                    portfolio_value=portfolio_value,
+                    prices=prices.loc[date],
+                    volumes=volumes.loc[date],
+                    model=liquidity_cost_model,
+                )
+            else:
+                cost_rate = linear_transaction_cost(turnover, transaction_cost_bps)
             portfolio_value *= (1.0 - cost_rate)
 
             # Rebalance at close of date; these weights are used from next day onward.
