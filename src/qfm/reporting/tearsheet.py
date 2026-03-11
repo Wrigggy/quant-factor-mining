@@ -29,6 +29,13 @@ def build_markdown_report(
         f"- Mean fold information ratio: {aggregate.get('mean_fold_information_ratio', float('nan')):.4f}",
         f"- OOS alpha (annual, concatenated folds): {aggregate.get('oos_alpha_annual', float('nan')):.4f}",
         f"- OOS information ratio (concatenated folds): {aggregate.get('oos_information_ratio', float('nan')):.4f}",
+    ]
+    if "holdout_gate_pass" in aggregate:
+        gate_status = "PASS" if aggregate.get("holdout_gate_pass") else "FAIL"
+        gate_reason = aggregate.get("holdout_gate_reason", "n/a")
+        lines.append(f"- Holdout gate: {gate_status} ({gate_reason})")
+
+    lines += [
         "",
         "## Fold Metrics",
         "",

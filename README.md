@@ -53,6 +53,8 @@ artifacts/runs/<timestamp>/
   holdout_metrics.json
   holdout_equity_curve.parquet
   nested_search_results.csv
+  stability_scoreboard.csv
+  stability_summary.json
   selected_params.json
   report.md
 
@@ -99,6 +101,13 @@ python3 scripts/run_walkforward.py --config configs/strategy/default.yaml --live
 
 ```bash
 python3 scripts/run_parameter_search.py --config configs/strategy/default.yaml
+```
+
+### 6. Stability-First Selection (Holdout Gate)
+
+```bash
+python3 scripts/run_walkforward.py --config configs/strategy/stability.yaml
+python3 scripts/run_parameter_search.py --config configs/strategy/stability.yaml --selection-mode stability_first
 ```
 
 ## Testing

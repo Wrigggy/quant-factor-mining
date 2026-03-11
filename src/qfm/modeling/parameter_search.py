@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from itertools import product
 from typing import Dict, List, Sequence
 
+import numpy as np
 import pandas as pd
 
 from qfm.backtest.costs import LiquidityCostModel
@@ -13,6 +14,7 @@ from qfm.factors.base import BaseFactor
 from qfm.factors.mean_reversion import MeanReversionFactor
 from qfm.factors.momentum import MomentumFactor
 from qfm.factors.volatility import LowVolatilityFactor
+from qfm.modeling.stability import summarize_fold_stability
 from qfm.modeling.walkforward import run_walkforward_research
 
 
@@ -88,6 +90,8 @@ def grid_search(
         )
 
         aggregate = result["aggregate"]
+        fold_stability = summarize_fold_stability(result["fold_metrics"])
+        holdout_metrics = result.get("holdout_metrics")
         rows.append(
             {
                 "momentum_lookback": mom_lb,
@@ -98,6 +102,24 @@ def grid_search(
                 "mean_fold_alpha_annual": aggregate["mean_fold_alpha_annual"],
                 "mean_fold_information_ratio": aggregate["mean_fold_information_ratio"],
                 "n_folds": aggregate["n_folds"],
+                "fold_sharpe_std": fold_stability["fold_sharpe_std"],
+                "positive_sharpe_ratio": fold_stability["positive_sharpe_ratio"],
+                "worst_fold_max_drawdown": fold_stability["worst_fold_max_drawdown"],
+                "holdout_total_return": (
+                    float(holdout_metrics.get("total_return", np.nan))
+                    if holdout_metrics is not None
+                    else np.nan
+                ),
+                "holdout_sharpe": (
+                    float(holdout_metrics.get("sharpe", np.nan))
+                    if holdout_metrics is not None
+                    else np.nan
+                ),
+                "holdout_excess_total_return": (
+                    float(holdout_metrics.get("excess_total_return", np.nan))
+                    if holdout_metrics is not None
+                    else np.nan
+                ),
             }
         )
 

@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 import sys
 
+import pandas as pd
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +27,12 @@ from qfm.data.fetch import (
 )
 from qfm.data.preprocess import preprocess_market_data, summarize_market_data
 from qfm.modeling.parameter_search import DEFAULT_SPACE, SearchSpace, build_factor_set, grid_search
+from qfm.modeling.stability import (
+    apply_holdout_gate,
+    evaluate_holdout_gate,
+    rank_candidates,
+    summarize_fold_stability,
+)
 from qfm.modeling.walkforward import run_walkforward_research
 from qfm.reporting.tearsheet import build_markdown_report, write_report
 
@@ -119,8 +126,16 @@ def main() -> None:
     nested_cfg = research_cfg.get("nested_search", {})
     nested_enabled = bool(nested_cfg.get("enabled", False))
     selection_metric = str(nested_cfg.get("selection_metric", "mean_fold_sharpe"))
+    selection_mode = str(nested_cfg.get("selection_mode", "mean_fold_sharpe"))
+    search_include_holdout = bool(nested_cfg.get("include_holdout", selection_mode == "stability_first"))
+    if selection_mode == "stability_first":
+        search_include_holdout = True
+    holdout_gate_cfg = research_cfg.get("holdout_gate", {})
+    min_holdout_sharpe = float(holdout_gate_cfg.get("min_sharpe", 0.0))
+    min_holdout_excess = float(holdout_gate_cfg.get("min_excess_total_return", 0.0))
 
     selected_params = None
+    stability_scoreboard = pd.DataFrame()
     if nested_enabled:
         search_space = _resolve_search_space(cfg)
         search_results = grid_search(
@@ -133,24 +148,39 @@ def main() -> None:
             transaction_cost_bps=float(research_cfg.get("transaction_cost_bps", 10.0)),
             initial_capital=float(research_cfg.get("initial_capital", 1_000_000)),
             holdout_size=holdout_size,
-            evaluate_holdout=False,
+            evaluate_holdout=search_include_holdout,
             liquidity_cost_model=liquidity_model,
             momentum_skip=int(factor_cfg.get("momentum_skip", 21)),
         )
-        if selection_metric not in search_results.columns:
-            raise ValueError(f"Invalid selection metric: {selection_metric}")
+        search_results = apply_holdout_gate(
+            candidates=search_results,
+            min_holdout_sharpe=min_holdout_sharpe,
+            min_holdout_excess_total_return=min_holdout_excess,
+        )
+        search_results = rank_candidates(
+            candidates=search_results,
+            selection_mode=selection_mode,
+            selection_metric=selection_metric,
+        )
 
-        search_results = search_results.sort_values(
-            [selection_metric, "mean_fold_total_return"],
-            ascending=False,
-        ).reset_index(drop=True)
-        best = search_results.iloc[0]
+        if selection_mode == "stability_first":
+            eligible = search_results.loc[search_results["gate_pass"]].reset_index(drop=True)
+            if eligible.empty:
+                raise ValueError(
+                    "No candidate passed the holdout gate under stability_first mode. "
+                    "Adjust thresholds or expand search space."
+                )
+            best = eligible.iloc[0]
+        else:
+            best = search_results.iloc[0]
+
         selected_params = {
             "momentum_lookback": int(best["momentum_lookback"]),
             "mean_reversion_lookback": int(best["mean_reversion_lookback"]),
             "volatility_window": int(best["volatility_window"]),
             "momentum_skip": int(factor_cfg.get("momentum_skip", 21)),
             "selection_metric": selection_metric,
+            "selection_mode": selection_mode,
         }
         factors = build_factor_set(
             momentum_lookback=selected_params["momentum_lookback"],
@@ -159,6 +189,7 @@ def main() -> None:
             momentum_skip=selected_params["momentum_skip"],
         )
 
+        stability_scoreboard = search_results.copy()
         search_results.to_csv(run_dir / "nested_search_results.csv", index=False)
         with open(run_dir / "selected_params.json", "w", encoding="utf-8") as handle:
             json.dump(selected_params, handle, indent=2)
@@ -187,12 +218,82 @@ def main() -> None:
     aggregate = result["aggregate"]
     holdout_metrics = result.get("holdout_metrics")
     holdout_equity_curve = result.get("holdout_equity_curve")
+    fold_stability = summarize_fold_stability(fold_metrics)
+
+    aggregate["fold_sharpe_std"] = fold_stability["fold_sharpe_std"]
+    aggregate["positive_sharpe_ratio"] = fold_stability["positive_sharpe_ratio"]
+    aggregate["worst_fold_max_drawdown"] = fold_stability["worst_fold_max_drawdown"]
+    if holdout_metrics is not None:
+        aggregate["holdout_excess_total_return"] = float(holdout_metrics.get("excess_total_return", 0.0))
+    else:
+        aggregate["holdout_excess_total_return"] = None
+
+    gate_pass, gate_reason = evaluate_holdout_gate(
+        holdout_sharpe=aggregate.get("holdout_sharpe"),
+        holdout_excess_total_return=aggregate.get("holdout_excess_total_return"),
+        min_holdout_sharpe=min_holdout_sharpe,
+        min_holdout_excess_total_return=min_holdout_excess,
+    )
+    aggregate["holdout_gate_pass"] = bool(gate_pass)
+    aggregate["holdout_gate_reason"] = gate_reason
+
+    if stability_scoreboard.empty:
+        stability_scoreboard = pd.DataFrame(
+            [
+                {
+                    "mean_fold_sharpe": aggregate["mean_fold_sharpe"],
+                    "mean_fold_total_return": aggregate["mean_fold_total_return"],
+                    "fold_sharpe_std": fold_stability["fold_sharpe_std"],
+                    "positive_sharpe_ratio": fold_stability["positive_sharpe_ratio"],
+                    "worst_fold_max_drawdown": fold_stability["worst_fold_max_drawdown"],
+                    "holdout_sharpe": aggregate.get("holdout_sharpe"),
+                    "holdout_excess_total_return": aggregate.get("holdout_excess_total_return"),
+                    "gate_pass": gate_pass,
+                    "gate_reason": gate_reason,
+                }
+            ]
+        )
+    else:
+        stability_scoreboard = apply_holdout_gate(
+            candidates=stability_scoreboard,
+            min_holdout_sharpe=min_holdout_sharpe,
+            min_holdout_excess_total_return=min_holdout_excess,
+        )
+    stability_scoreboard = rank_candidates(
+        candidates=stability_scoreboard,
+        selection_mode="stability_first",
+        selection_metric=selection_metric,
+    )
+
+    stability_summary = {
+        "run_id": run_id,
+        "selection_mode": selection_mode,
+        "selection_metric": selection_metric,
+        "min_holdout_sharpe": min_holdout_sharpe,
+        "min_holdout_excess_total_return": min_holdout_excess,
+        "gate_status": "PASS" if gate_pass else "FAIL",
+        "gate_pass": bool(gate_pass),
+        "gate_reason": gate_reason,
+        "mean_fold_sharpe": aggregate["mean_fold_sharpe"],
+        "mean_fold_total_return": aggregate["mean_fold_total_return"],
+        "fold_sharpe_std": fold_stability["fold_sharpe_std"],
+        "positive_sharpe_ratio": fold_stability["positive_sharpe_ratio"],
+        "worst_fold_max_drawdown": fold_stability["worst_fold_max_drawdown"],
+        "holdout_sharpe": aggregate.get("holdout_sharpe"),
+        "holdout_excess_total_return": aggregate.get("holdout_excess_total_return"),
+        "n_candidates": int(len(stability_scoreboard)),
+        "n_gate_pass": int(stability_scoreboard["gate_pass"].sum()),
+        "selected_params": selected_params,
+    }
 
     fold_metrics.to_csv(run_dir / "fold_metrics.csv", index=False)
     equity_curve.to_parquet(run_dir / "equity_curve.parquet")
+    stability_scoreboard.to_csv(run_dir / "stability_scoreboard.csv", index=False)
 
     with open(run_dir / "metrics.json", "w", encoding="utf-8") as handle:
         json.dump(aggregate, handle, indent=2)
+    with open(run_dir / "stability_summary.json", "w", encoding="utf-8") as handle:
+        json.dump(stability_summary, handle, indent=2)
 
     if holdout_metrics is not None:
         with open(run_dir / "holdout_metrics.json", "w", encoding="utf-8") as handle:
@@ -234,6 +335,7 @@ def main() -> None:
     if "holdout_total_return" in aggregate:
         print(f"Holdout total return: {aggregate['holdout_total_return']:.4f}")
         print(f"Holdout Sharpe: {aggregate['holdout_sharpe']:.4f}")
+    print(f"Holdout gate: {'PASS' if gate_pass else 'FAIL'} ({gate_reason})")
 
 
 if __name__ == "__main__":
