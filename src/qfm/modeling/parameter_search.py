@@ -1,4 +1,4 @@
-"""Simple, deterministic parameter search for interview-friendly reproducibility."""
+"""Simple, deterministic parameter search for reproducible research workflows."""
 
 from __future__ import annotations
 

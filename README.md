@@ -1,8 +1,8 @@
-# Quant Factor Mining (Internship-Oriented Research Project)
+# Quant Factor Mining Research Project
 
 A leakage-safe, reproducible multi-factor research framework for equity signals.
 
-This project is designed for interview credibility:
+This project is designed for rigorous, reproducible factor research:
 - strict time-ordering in research and backtest
 - offline reproducibility by default
 - run artifacts saved per experiment
@@ -132,7 +132,7 @@ See:
 - `docs/methodology.md`
 - `docs/assumptions.md`
 - `docs/limitations.md`
-- `docs/interview_notes.md`
+- `docs/project_notes.md`
 
 ## Scope and Limitations
 

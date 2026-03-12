@@ -1,7 +1,7 @@
 # Methodology
 
 ## Objective
-Build a reproducible multi-factor research pipeline for internship demonstration with strict anti-leakage controls.
+Build a reproducible multi-factor research pipeline for rigorous experimentation with strict anti-leakage controls.
 
 ## Core Workflow
 1. Load snapshot market data (or refresh live data into snapshot).
