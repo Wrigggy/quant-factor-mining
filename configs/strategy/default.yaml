@@ -28,6 +28,7 @@ factors:
 research:
   train_size: 504
   test_size: 126
+  walkforward_step_size: 126
   holdout_size: 126
   top_n: 5
   rebalance_frequency: 21

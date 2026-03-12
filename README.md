@@ -123,6 +123,7 @@ python3 -m pytest -q
 - Signal at `t` is never applied to return at `t`.
 - Rebalance occurs at close of `t`; new weights are active from `t+1`.
 - Walk-forward folds estimate factor weights on train only, then evaluate on test.
+- Fold shift is configurable via `research.walkforward_step_size`.
 - Nested search ranks parameter sets on pre-holdout folds only.
 - Optional holdout window is untouched during parameter selection.
 - Position sizing can be equal-weight or score-tilted with per-name cap.

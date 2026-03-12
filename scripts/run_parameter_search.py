@@ -93,6 +93,7 @@ def main() -> None:
     selection_mode = args.selection_mode or str(nested_cfg.get("selection_mode", "mean_fold_sharpe"))
     selection_metric = str(nested_cfg.get("selection_metric", "mean_fold_sharpe"))
     include_holdout = bool(args.include_holdout or selection_mode == "stability_first")
+    walkforward_step_size = int(research_cfg.get("walkforward_step_size", research_cfg.get("test_size", 126)))
     min_holdout_sharpe = (
         float(args.min_holdout_sharpe)
         if args.min_holdout_sharpe is not None
@@ -112,6 +113,7 @@ def main() -> None:
         search_space=_resolve_search_space(cfg),
         train_size=int(research_cfg.get("train_size", 504)),
         test_size=int(research_cfg.get("test_size", 126)),
+        step_size=walkforward_step_size,
         top_n=int(research_cfg.get("top_n", 5)),
         rebalance_frequency=int(research_cfg.get("rebalance_frequency", 21)),
         transaction_cost_bps=float(research_cfg.get("transaction_cost_bps", 10.0)),

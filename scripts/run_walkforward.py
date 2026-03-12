@@ -121,6 +121,7 @@ def main() -> None:
 
     liquidity_model = LiquidityCostModel.from_dict(research_cfg.get("liquidity_model", {}))
     holdout_size = int(research_cfg.get("holdout_size", 0))
+    walkforward_step_size = int(research_cfg.get("walkforward_step_size", research_cfg.get("test_size", 126)))
     bootstrap_samples = int(research_cfg.get("bootstrap_samples", 0))
     bootstrap_ci_level = float(research_cfg.get("bootstrap_ci_level", 0.95))
     bootstrap_seed = int(research_cfg.get("bootstrap_seed", 42))
@@ -167,6 +168,7 @@ def main() -> None:
             search_space=search_space,
             train_size=int(research_cfg.get("train_size", 504)),
             test_size=int(research_cfg.get("test_size", 126)),
+            step_size=walkforward_step_size,
             top_n=int(research_cfg.get("top_n", 20)),
             rebalance_frequency=int(research_cfg.get("rebalance_frequency", 21)),
             transaction_cost_bps=float(research_cfg.get("transaction_cost_bps", 10.0)),
@@ -228,6 +230,7 @@ def main() -> None:
         factors=factors,
         train_size=int(research_cfg.get("train_size", 504)),
         test_size=int(research_cfg.get("test_size", 126)),
+        step_size=walkforward_step_size,
         top_n=int(research_cfg.get("top_n", 20)),
         rebalance_frequency=int(research_cfg.get("rebalance_frequency", 21)),
         transaction_cost_bps=float(research_cfg.get("transaction_cost_bps", 10.0)),
@@ -388,6 +391,7 @@ def main() -> None:
     print(f"Mean fold total return: {aggregate['mean_fold_total_return']:.4f}")
     print(f"Mean fold alpha (annual): {aggregate['mean_fold_alpha_annual']:.4f}")
     print(f"Mean fold information ratio: {aggregate['mean_fold_information_ratio']:.4f}")
+    print(f"Walk-forward step size: {walkforward_step_size}")
     print(
         f"Position sizing: mode={weighting_mode}, "
         f"score_temperature={score_temperature:.3f}, max_single_weight={max_single_weight:.3f}"

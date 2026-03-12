@@ -10,6 +10,7 @@ Build a reproducible multi-factor research pipeline for rigorous experimentation
 4. Compute forward returns labels.
 5. Run walk-forward evaluation:
    - Train window estimates factor weights by train-period IC means.
+   - Fold windows roll forward by configurable `walkforward_step_size` (default equals test size when not set).
    - Test window applies fixed train weights only.
    - Backtest uses signal-at-`t` and execute-from-`t+1` timing with configurable position sizing (`equal_weight` or `score_tilted`).
 6. Optionally reserve untouched final holdout period and evaluate once after selection.

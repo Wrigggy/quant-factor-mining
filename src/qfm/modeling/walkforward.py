@@ -42,6 +42,8 @@ def generate_folds(
         raise ValueError("train_size and test_size must be positive")
 
     dates = pd.DatetimeIndex(sorted(dates.unique()))
+    if step_size is not None and step_size <= 0:
+        raise ValueError("step_size must be positive")
     step = step_size or test_size
     folds: List[WalkForwardFold] = []
 
@@ -189,6 +191,7 @@ def run_walkforward_research(
     rebalance_frequency: int,
     transaction_cost_bps: float,
     initial_capital: float,
+    step_size: int | None = None,
     holdout_size: int = 0,
     evaluate_holdout: bool = True,
     bootstrap_samples: int = 0,
@@ -220,7 +223,12 @@ def run_walkforward_research(
     dates = pd.DatetimeIndex(sorted(close_wide.index.unique()))
     research_dates, holdout_dates = _split_research_and_holdout(dates, holdout_size)
 
-    folds = generate_folds(research_dates, train_size=train_size, test_size=test_size)
+    folds = generate_folds(
+        research_dates,
+        train_size=train_size,
+        test_size=test_size,
+        step_size=step_size,
+    )
     if not folds:
         raise ValueError("No folds generated; adjust train/test/holdout sizes")
 
@@ -286,6 +294,7 @@ def run_walkforward_research(
         "mean_fold_alpha_annual": float(fold_metrics["alpha_annual"].mean()),
         "mean_fold_information_ratio": float(fold_metrics["information_ratio"].mean()),
         "n_folds": int(len(fold_metrics)),
+        "walkforward_step_size": int(step_size or test_size),
         "benchmark_source": benchmark_source,
         "position_sizing_mode": weighting_mode,
         "position_sizing_score_temperature": float(score_temperature),
