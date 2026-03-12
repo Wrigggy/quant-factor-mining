@@ -139,6 +139,7 @@ def _run_period_backtest(
     transaction_cost_bps: float,
     initial_capital: float,
     liquidity_cost_model: Optional[LiquidityCostModel],
+    benchmark_returns: Optional[pd.Series] = None,
 ) -> Tuple[pd.DataFrame, pd.Series]:
     """Backtest one date range and return strategy curve + benchmark series."""
     test_mask = (
@@ -166,7 +167,10 @@ def _run_period_backtest(
         execution_volumes=period_volumes,
         liquidity_cost_model=liquidity_cost_model,
     )
-    benchmark = equal_weight_benchmark(period_returns).reindex(bt.index)
+    if benchmark_returns is None:
+        benchmark = equal_weight_benchmark(period_returns).reindex(bt.index)
+    else:
+        benchmark = benchmark_returns.reindex(bt.index).rename("benchmark_return")
     return bt, benchmark
 
 
@@ -185,6 +189,9 @@ def run_walkforward_research(
     bootstrap_ci_level: float = 0.95,
     bootstrap_seed: int = 42,
     liquidity_cost_model: Optional[LiquidityCostModel] = None,
+    benchmark_returns: Optional[pd.Series] = None,
+    benchmark_source: str = "equal_weight",
+    benchmark_metadata: Optional[Dict[str, object]] = None,
 ) -> Dict[str, object]:
     """Execute walk-forward pipeline and return fold metrics + aggregate outputs."""
     data = ensure_market_data(market_data)
@@ -194,6 +201,12 @@ def run_walkforward_research(
     close_wide = data["close"].unstack("ticker").sort_index()
     volume_wide = data["volume"].unstack("ticker").sort_index()
     asset_returns = close_wide.pct_change().fillna(0.0)
+    resolved_benchmark = None
+    if benchmark_returns is not None:
+        resolved_benchmark = pd.Series(benchmark_returns).copy()
+        resolved_benchmark.index = pd.to_datetime(resolved_benchmark.index)
+        resolved_benchmark = resolved_benchmark.sort_index().reindex(asset_returns.index)
+        resolved_benchmark.name = "benchmark_return"
 
     dates = pd.DatetimeIndex(sorted(close_wide.index.unique()))
     research_dates, holdout_dates = _split_research_and_holdout(dates, holdout_size)
@@ -228,6 +241,7 @@ def run_walkforward_research(
             transaction_cost_bps=transaction_cost_bps,
             initial_capital=initial_capital,
             liquidity_cost_model=liquidity_cost_model,
+            benchmark_returns=resolved_benchmark,
         )
 
         metrics = compute_performance_metrics(
@@ -260,7 +274,18 @@ def run_walkforward_research(
         "mean_fold_alpha_annual": float(fold_metrics["alpha_annual"].mean()),
         "mean_fold_information_ratio": float(fold_metrics["information_ratio"].mean()),
         "n_folds": int(len(fold_metrics)),
+        "benchmark_source": benchmark_source,
     }
+    if benchmark_metadata is not None:
+        for key in (
+            "requested_mode",
+            "requested_ticker",
+            "coverage_ratio",
+            "non_null_days",
+            "total_days",
+            "fallback_reason",
+        ):
+            aggregate[f"benchmark_{key}"] = benchmark_metadata.get(key)
 
     oos_strategy = pd.concat(oos_strategy_returns).sort_index()
     oos_benchmark = pd.concat(oos_benchmark_returns).sort_index()
@@ -304,6 +329,7 @@ def run_walkforward_research(
             transaction_cost_bps=transaction_cost_bps,
             initial_capital=initial_capital,
             liquidity_cost_model=liquidity_cost_model,
+            benchmark_returns=resolved_benchmark,
         )
         holdout_metrics = compute_performance_metrics(
             holdout_bt,
@@ -317,6 +343,7 @@ def run_walkforward_research(
         holdout_metrics["holdout_start"] = str(holdout_start.date())
         holdout_metrics["holdout_end"] = str(holdout_end.date())
         holdout_metrics["train_ic_mean"] = float(np.mean(list(train_ic.values())))
+        holdout_metrics["benchmark_source"] = benchmark_source
 
         holdout_equity_curve = holdout_bt
         aggregate["holdout_total_return"] = float(holdout_metrics["total_return"])

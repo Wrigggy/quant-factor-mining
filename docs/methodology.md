@@ -13,7 +13,7 @@ Build a reproducible multi-factor research pipeline for rigorous experimentation
    - Test window applies fixed train weights only.
    - Backtest uses signal-at-`t` and execute-from-`t+1` timing.
 6. Optionally reserve untouched final holdout period and evaluate once after selection.
-7. Compute benchmark-relative attribution for each fold (alpha, beta, tracking error, IR).
+7. Resolve benchmark series (SPY preferred, equal-weight fallback) and compute benchmark-relative attribution for each fold (alpha, beta, tracking error, IR).
 8. Optionally bootstrap confidence intervals for alpha annualized and information ratio.
 9. Persist artifacts (metrics, fold table, equity curve, config snapshot, report).
 

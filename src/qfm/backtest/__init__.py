@@ -1,6 +1,6 @@
 """Backtest exports."""
 
-from .benchmarks import equal_weight_benchmark
+from .benchmarks import BenchmarkResolution, equal_weight_benchmark, resolve_benchmark_returns
 from .costs import LiquidityCostModel
 from .engine import run_backtest_from_scores
 from .metrics import (
@@ -11,6 +11,8 @@ from .metrics import (
 
 __all__ = [
     "equal_weight_benchmark",
+    "BenchmarkResolution",
+    "resolve_benchmark_returns",
     "LiquidityCostModel",
     "run_backtest_from_scores",
     "compute_performance_metrics",

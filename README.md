@@ -127,9 +127,11 @@ python3 -m pytest -q
 - Optional holdout window is untouched during parameter selection.
 - Attribution metrics can include bootstrap confidence intervals.
 - Cost model supports both linear bps and liquidity/slippage-aware mode.
+- Benchmark defaults to SPY when available, with equal-weight fallback for offline reliability.
 
 See:
 - `docs/methodology.md`
+- `docs/model_equations.md`
 - `docs/assumptions.md`
 - `docs/limitations.md`
 - `docs/project_notes.md`

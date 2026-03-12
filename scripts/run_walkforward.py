@@ -17,6 +17,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from qfm.backtest.benchmarks import resolve_benchmark_returns
 from qfm.backtest.costs import LiquidityCostModel
 from qfm.data.fetch import (
     DEFAULT_SNAPSHOT_PATH,
@@ -103,6 +104,7 @@ def main() -> None:
     args = parse_args()
     cfg = _load_config(args.config)
 
+    data_cfg = cfg.get("data", {})
     run_cfg = cfg.get("run", {})
     research_cfg = cfg.get("research", {})
     factor_cfg = cfg.get("factors", {})
@@ -114,7 +116,7 @@ def main() -> None:
     data = _get_data(cfg, force_live=args.live)
     clean_data, preprocess_report = preprocess_market_data(
         data,
-        max_ffill_days=int(cfg.get("data", {}).get("max_ffill_days", 3)),
+        max_ffill_days=int(data_cfg.get("max_ffill_days", 3)),
     )
 
     liquidity_model = LiquidityCostModel.from_dict(research_cfg.get("liquidity_model", {}))
@@ -122,6 +124,24 @@ def main() -> None:
     bootstrap_samples = int(research_cfg.get("bootstrap_samples", 0))
     bootstrap_ci_level = float(research_cfg.get("bootstrap_ci_level", 0.95))
     bootstrap_seed = int(research_cfg.get("bootstrap_seed", 42))
+    benchmark_cfg = research_cfg.get("benchmark", {})
+    benchmark_mode = str(benchmark_cfg.get("mode", "equal_weight"))
+    benchmark_ticker = str(benchmark_cfg.get("ticker", "SPY"))
+    benchmark_fallback = str(benchmark_cfg.get("fallback", "equal_weight"))
+    benchmark_fetch_if_missing = bool(benchmark_cfg.get("fetch_if_missing", False))
+
+    close_wide = clean_data["close"].unstack("ticker").sort_index()
+    asset_returns = close_wide.pct_change().fillna(0.0)
+    benchmark_resolution = resolve_benchmark_returns(
+        asset_returns=asset_returns,
+        market_data=clean_data,
+        mode=benchmark_mode,
+        ticker=benchmark_ticker,
+        fallback=benchmark_fallback,
+        fetch_if_missing=benchmark_fetch_if_missing,
+        start_date=data_cfg.get("start_date"),
+        end_date=data_cfg.get("end_date"),
+    )
 
     nested_cfg = research_cfg.get("nested_search", {})
     nested_enabled = bool(nested_cfg.get("enabled", False))
@@ -211,6 +231,16 @@ def main() -> None:
         bootstrap_ci_level=bootstrap_ci_level,
         bootstrap_seed=bootstrap_seed,
         liquidity_cost_model=liquidity_model,
+        benchmark_returns=benchmark_resolution.returns,
+        benchmark_source=benchmark_resolution.source,
+        benchmark_metadata={
+            "requested_mode": benchmark_resolution.requested_mode,
+            "requested_ticker": benchmark_resolution.requested_ticker,
+            "coverage_ratio": benchmark_resolution.coverage_ratio,
+            "non_null_days": benchmark_resolution.non_null_days,
+            "total_days": benchmark_resolution.total_days,
+            "fallback_reason": benchmark_resolution.fallback_reason,
+        },
     )
 
     fold_metrics = result["fold_metrics"]
@@ -284,6 +314,13 @@ def main() -> None:
         "n_candidates": int(len(stability_scoreboard)),
         "n_gate_pass": int(stability_scoreboard["gate_pass"].sum()),
         "selected_params": selected_params,
+        "benchmark_source": benchmark_resolution.source,
+        "benchmark_requested_mode": benchmark_resolution.requested_mode,
+        "benchmark_requested_ticker": benchmark_resolution.requested_ticker,
+        "benchmark_coverage_ratio": benchmark_resolution.coverage_ratio,
+        "benchmark_non_null_days": benchmark_resolution.non_null_days,
+        "benchmark_total_days": benchmark_resolution.total_days,
+        "benchmark_fallback_reason": benchmark_resolution.fallback_reason,
     }
 
     fold_metrics.to_csv(run_dir / "fold_metrics.csv", index=False)
@@ -307,6 +344,15 @@ def main() -> None:
         "split": result.get("split"),
         "data_summary": summarize_market_data(clean_data),
         "preprocess_report": preprocess_report.__dict__,
+        "benchmark_summary": {
+            "source": benchmark_resolution.source,
+            "requested_mode": benchmark_resolution.requested_mode,
+            "requested_ticker": benchmark_resolution.requested_ticker,
+            "coverage_ratio": benchmark_resolution.coverage_ratio,
+            "non_null_days": benchmark_resolution.non_null_days,
+            "total_days": benchmark_resolution.total_days,
+            "fallback_reason": benchmark_resolution.fallback_reason,
+        },
         "run_id": run_id,
     }
     with open(run_dir / "run_snapshot.json", "w", encoding="utf-8") as handle:
@@ -332,6 +378,12 @@ def main() -> None:
     print(f"Mean fold total return: {aggregate['mean_fold_total_return']:.4f}")
     print(f"Mean fold alpha (annual): {aggregate['mean_fold_alpha_annual']:.4f}")
     print(f"Mean fold information ratio: {aggregate['mean_fold_information_ratio']:.4f}")
+    print(
+        "Benchmark source: "
+        f"{benchmark_resolution.source} "
+        f"(coverage={benchmark_resolution.coverage_ratio:.2%}, "
+        f"fallback_reason={benchmark_resolution.fallback_reason})"
+    )
     if "holdout_total_return" in aggregate:
         print(f"Holdout total return: {aggregate['holdout_total_return']:.4f}")
         print(f"Holdout Sharpe: {aggregate['holdout_sharpe']:.4f}")

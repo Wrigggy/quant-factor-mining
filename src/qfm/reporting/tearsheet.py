@@ -30,6 +30,15 @@ def build_markdown_report(
         f"- OOS alpha (annual, concatenated folds): {aggregate.get('oos_alpha_annual', float('nan')):.4f}",
         f"- OOS information ratio (concatenated folds): {aggregate.get('oos_information_ratio', float('nan')):.4f}",
     ]
+    if "benchmark_source" in aggregate:
+        lines.append(f"- Benchmark source: {aggregate.get('benchmark_source')}")
+    if "benchmark_coverage_ratio" in aggregate:
+        coverage = float(aggregate.get("benchmark_coverage_ratio", 0.0))
+        non_null = aggregate.get("benchmark_non_null_days", "N/A")
+        total_days = aggregate.get("benchmark_total_days", "N/A")
+        lines.append(f"- Benchmark coverage: {coverage:.2%} ({non_null}/{total_days} days)")
+    if aggregate.get("benchmark_fallback_reason"):
+        lines.append(f"- Benchmark fallback reason: {aggregate.get('benchmark_fallback_reason')}")
     if "holdout_gate_pass" in aggregate:
         gate_status = "PASS" if aggregate.get("holdout_gate_pass") else "FAIL"
         gate_reason = aggregate.get("holdout_gate_reason", "n/a")
@@ -81,6 +90,21 @@ def build_markdown_report(
         "- Transaction costs include linear and optional liquidity/slippage-aware model.",
         "- Benchmark-relative attribution includes alpha, beta, tracking error, and information ratio.",
         "- Optional bootstrap confidence intervals for alpha and information ratio.",
+    ]
+
+    lines += [
+        "",
+        "## Equation Map (Condensed)",
+        "",
+        "```text",
+        "OHLCV panel -> factor signals -> cross-sectional z-score -> train IC weights",
+        "-> composite score S(i,t) = sum_j w_j * z_j(i,t)",
+        "-> rank S(i,t), select top-N, equal weight portfolio",
+        "-> execute at close(t), active from t+1",
+        "-> strategy returns + benchmark returns -> attribution (alpha/beta/TE/IR)",
+        "```",
+        "",
+        "Full math and intuition: `docs/model_equations.md`",
     ]
 
     return "\n".join(lines) + "\n"

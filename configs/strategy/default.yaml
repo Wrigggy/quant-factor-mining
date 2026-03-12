@@ -36,6 +36,11 @@ research:
   bootstrap_samples: 300
   bootstrap_ci_level: 0.95
   bootstrap_seed: 42
+  benchmark:
+    mode: spy
+    ticker: SPY
+    fallback: equal_weight
+    fetch_if_missing: true
   liquidity_model:
     enabled: true
     commission_bps: 4.0
