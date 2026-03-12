@@ -129,6 +129,10 @@ def main() -> None:
     benchmark_ticker = str(benchmark_cfg.get("ticker", "SPY"))
     benchmark_fallback = str(benchmark_cfg.get("fallback", "equal_weight"))
     benchmark_fetch_if_missing = bool(benchmark_cfg.get("fetch_if_missing", False))
+    position_cfg = research_cfg.get("position_sizing", {})
+    weighting_mode = str(position_cfg.get("mode", "equal_weight"))
+    score_temperature = float(position_cfg.get("score_temperature", 1.0))
+    max_single_weight = float(position_cfg.get("max_single_weight", 1.0))
 
     close_wide = clean_data["close"].unstack("ticker").sort_index()
     asset_returns = close_wide.pct_change().fillna(0.0)
@@ -171,6 +175,9 @@ def main() -> None:
             evaluate_holdout=search_include_holdout,
             liquidity_cost_model=liquidity_model,
             momentum_skip=int(factor_cfg.get("momentum_skip", 21)),
+            weighting_mode=weighting_mode,
+            score_temperature=score_temperature,
+            max_single_weight=max_single_weight,
         )
         search_results = apply_holdout_gate(
             candidates=search_results,
@@ -231,6 +238,9 @@ def main() -> None:
         bootstrap_ci_level=bootstrap_ci_level,
         bootstrap_seed=bootstrap_seed,
         liquidity_cost_model=liquidity_model,
+        weighting_mode=weighting_mode,
+        score_temperature=score_temperature,
+        max_single_weight=max_single_weight,
         benchmark_returns=benchmark_resolution.returns,
         benchmark_source=benchmark_resolution.source,
         benchmark_metadata={
@@ -378,6 +388,10 @@ def main() -> None:
     print(f"Mean fold total return: {aggregate['mean_fold_total_return']:.4f}")
     print(f"Mean fold alpha (annual): {aggregate['mean_fold_alpha_annual']:.4f}")
     print(f"Mean fold information ratio: {aggregate['mean_fold_information_ratio']:.4f}")
+    print(
+        f"Position sizing: mode={weighting_mode}, "
+        f"score_temperature={score_temperature:.3f}, max_single_weight={max_single_weight:.3f}"
+    )
     print(
         "Benchmark source: "
         f"{benchmark_resolution.source} "

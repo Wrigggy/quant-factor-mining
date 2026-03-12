@@ -11,7 +11,7 @@ Build a reproducible multi-factor research pipeline for rigorous experimentation
 5. Run walk-forward evaluation:
    - Train window estimates factor weights by train-period IC means.
    - Test window applies fixed train weights only.
-   - Backtest uses signal-at-`t` and execute-from-`t+1` timing.
+   - Backtest uses signal-at-`t` and execute-from-`t+1` timing with configurable position sizing (`equal_weight` or `score_tilted`).
 6. Optionally reserve untouched final holdout period and evaluate once after selection.
 7. Resolve benchmark series (SPY preferred, equal-weight fallback) and compute benchmark-relative attribution for each fold (alpha, beta, tracking error, IR).
 8. Optionally bootstrap confidence intervals for alpha annualized and information ratio.

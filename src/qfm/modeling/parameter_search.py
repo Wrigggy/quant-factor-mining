@@ -59,6 +59,9 @@ def grid_search(
     evaluate_holdout: bool = False,
     liquidity_cost_model: LiquidityCostModel | None = None,
     momentum_skip: int = 21,
+    weighting_mode: str = "equal_weight",
+    score_temperature: float = 1.0,
+    max_single_weight: float = 1.0,
 ) -> pd.DataFrame:
     """Run deterministic grid search and return ranked results."""
     rows: List[Dict[str, object]] = []
@@ -87,6 +90,9 @@ def grid_search(
             holdout_size=holdout_size,
             evaluate_holdout=evaluate_holdout,
             liquidity_cost_model=liquidity_cost_model,
+            weighting_mode=weighting_mode,
+            score_temperature=score_temperature,
+            max_single_weight=max_single_weight,
         )
 
         aggregate = result["aggregate"]

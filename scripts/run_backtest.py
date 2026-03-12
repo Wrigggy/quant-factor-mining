@@ -73,6 +73,7 @@ def main() -> None:
     volumes = clean_data["volume"].unstack("ticker").reindex(prices.index).sort_index()
     asset_returns = prices.pct_change().fillna(0.0)
     research_cfg = cfg.get("research", {})
+    position_cfg = research_cfg.get("position_sizing", {})
     liquidity_model = LiquidityCostModel.from_dict(research_cfg.get("liquidity_model", {}))
 
     bt = run_backtest_from_scores(
@@ -85,6 +86,9 @@ def main() -> None:
         execution_prices=prices,
         execution_volumes=volumes,
         liquidity_cost_model=liquidity_model,
+        weighting_mode=str(position_cfg.get("mode", "equal_weight")),
+        score_temperature=float(position_cfg.get("score_temperature", 1.0)),
+        max_single_weight=float(position_cfg.get("max_single_weight", 1.0)),
     )
 
     benchmark = equal_weight_benchmark(asset_returns).reindex(bt.index)

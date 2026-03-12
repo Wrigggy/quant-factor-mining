@@ -125,6 +125,7 @@ python3 -m pytest -q
 - Walk-forward folds estimate factor weights on train only, then evaluate on test.
 - Nested search ranks parameter sets on pre-holdout folds only.
 - Optional holdout window is untouched during parameter selection.
+- Position sizing can be equal-weight or score-tilted with per-name cap.
 - Attribution metrics can include bootstrap confidence intervals.
 - Cost model supports both linear bps and liquidity/slippage-aware mode.
 - Benchmark defaults to SPY when available, with equal-weight fallback for offline reliability.

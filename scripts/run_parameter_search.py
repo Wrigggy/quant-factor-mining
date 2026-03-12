@@ -88,6 +88,7 @@ def main() -> None:
     factor_cfg = cfg.get("factors", {})
     liquidity_model = LiquidityCostModel.from_dict(research_cfg.get("liquidity_model", {}))
     holdout_gate_cfg = research_cfg.get("holdout_gate", {})
+    position_cfg = research_cfg.get("position_sizing", {})
 
     selection_mode = args.selection_mode or str(nested_cfg.get("selection_mode", "mean_fold_sharpe"))
     selection_metric = str(nested_cfg.get("selection_metric", "mean_fold_sharpe"))
@@ -102,6 +103,9 @@ def main() -> None:
         if args.min_holdout_excess is not None
         else float(holdout_gate_cfg.get("min_excess_total_return", 0.0))
     )
+    weighting_mode = str(position_cfg.get("mode", "equal_weight"))
+    score_temperature = float(position_cfg.get("score_temperature", 1.0))
+    max_single_weight = float(position_cfg.get("max_single_weight", 1.0))
 
     res = grid_search(
         market_data=clean,
@@ -116,6 +120,9 @@ def main() -> None:
         evaluate_holdout=include_holdout,
         liquidity_cost_model=liquidity_model,
         momentum_skip=int(factor_cfg.get("momentum_skip", 21)),
+        weighting_mode=weighting_mode,
+        score_temperature=score_temperature,
+        max_single_weight=max_single_weight,
     )
     res = apply_holdout_gate(
         candidates=res,

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from qfm.backtest.engine import run_backtest_from_scores
 
 
-def test_backtest_signal_is_not_used_same_day():
+@pytest.mark.parametrize("weighting_mode", ["equal_weight", "score_tilted"])
+def test_backtest_signal_is_not_used_same_day(weighting_mode: str):
     dates = pd.bdate_range("2024-01-01", periods=8)
     returns = pd.DataFrame(index=dates, columns=["A", "B"], data=0.0)
 
@@ -31,6 +33,9 @@ def test_backtest_signal_is_not_used_same_day():
         rebalance_frequency=1,
         transaction_cost_bps=0.0,
         initial_capital=100.0,
+        weighting_mode=weighting_mode,
+        score_temperature=0.8,
+        max_single_weight=1.0,
     )
 
     # With correct t -> t+1 execution, this alternating setup should not harvest same-day winners.

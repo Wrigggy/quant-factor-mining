@@ -140,6 +140,9 @@ def _run_period_backtest(
     initial_capital: float,
     liquidity_cost_model: Optional[LiquidityCostModel],
     benchmark_returns: Optional[pd.Series] = None,
+    weighting_mode: str = "equal_weight",
+    score_temperature: float = 1.0,
+    max_single_weight: float = 1.0,
 ) -> Tuple[pd.DataFrame, pd.Series]:
     """Backtest one date range and return strategy curve + benchmark series."""
     test_mask = (
@@ -166,6 +169,9 @@ def _run_period_backtest(
         execution_prices=period_prices,
         execution_volumes=period_volumes,
         liquidity_cost_model=liquidity_cost_model,
+        weighting_mode=weighting_mode,
+        score_temperature=score_temperature,
+        max_single_weight=max_single_weight,
     )
     if benchmark_returns is None:
         benchmark = equal_weight_benchmark(period_returns).reindex(bt.index)
@@ -189,6 +195,9 @@ def run_walkforward_research(
     bootstrap_ci_level: float = 0.95,
     bootstrap_seed: int = 42,
     liquidity_cost_model: Optional[LiquidityCostModel] = None,
+    weighting_mode: str = "equal_weight",
+    score_temperature: float = 1.0,
+    max_single_weight: float = 1.0,
     benchmark_returns: Optional[pd.Series] = None,
     benchmark_source: str = "equal_weight",
     benchmark_metadata: Optional[Dict[str, object]] = None,
@@ -242,6 +251,9 @@ def run_walkforward_research(
             initial_capital=initial_capital,
             liquidity_cost_model=liquidity_cost_model,
             benchmark_returns=resolved_benchmark,
+            weighting_mode=weighting_mode,
+            score_temperature=score_temperature,
+            max_single_weight=max_single_weight,
         )
 
         metrics = compute_performance_metrics(
@@ -275,6 +287,9 @@ def run_walkforward_research(
         "mean_fold_information_ratio": float(fold_metrics["information_ratio"].mean()),
         "n_folds": int(len(fold_metrics)),
         "benchmark_source": benchmark_source,
+        "position_sizing_mode": weighting_mode,
+        "position_sizing_score_temperature": float(score_temperature),
+        "position_sizing_max_single_weight": float(max_single_weight),
     }
     if benchmark_metadata is not None:
         for key in (
@@ -330,6 +345,9 @@ def run_walkforward_research(
             initial_capital=initial_capital,
             liquidity_cost_model=liquidity_cost_model,
             benchmark_returns=resolved_benchmark,
+            weighting_mode=weighting_mode,
+            score_temperature=score_temperature,
+            max_single_weight=max_single_weight,
         )
         holdout_metrics = compute_performance_metrics(
             holdout_bt,
@@ -344,6 +362,7 @@ def run_walkforward_research(
         holdout_metrics["holdout_end"] = str(holdout_end.date())
         holdout_metrics["train_ic_mean"] = float(np.mean(list(train_ic.values())))
         holdout_metrics["benchmark_source"] = benchmark_source
+        holdout_metrics["position_sizing_mode"] = weighting_mode
 
         holdout_equity_curve = holdout_bt
         aggregate["holdout_total_return"] = float(holdout_metrics["total_return"])

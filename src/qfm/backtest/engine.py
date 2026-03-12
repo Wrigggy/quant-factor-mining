@@ -7,13 +7,52 @@ from __future__ import annotations
 
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 from .costs import LiquidityCostModel, linear_transaction_cost, liquidity_transaction_cost
 
 
-def _target_weights_from_scores(score_row: pd.Series, top_n: int, universe: pd.Index) -> pd.Series:
-    """Convert cross-sectional score into equal-weight long-only target portfolio."""
+def _apply_weight_cap(weights: pd.Series, max_single_weight: float) -> pd.Series:
+    """Apply per-asset max weight and renormalize while preserving long-only weights."""
+    w = weights.clip(lower=0.0).astype(float)
+    if w.sum() <= 0:
+        return w
+    w = w / w.sum()
+
+    cap = float(max_single_weight)
+    if cap >= 1.0:
+        return w
+    if cap <= 0.0:
+        raise ValueError("max_single_weight must be > 0")
+    if len(w) * cap < 1.0 - 1e-12:
+        raise ValueError("max_single_weight is too small for selected asset count")
+
+    w = w.clip(upper=cap)
+    for _ in range(32):
+        deficit = 1.0 - float(w.sum())
+        if deficit <= 1e-12:
+            break
+        room = (cap - w).clip(lower=0.0)
+        room_sum = float(room.sum())
+        if room_sum <= 1e-12:
+            break
+        w = (w + room / room_sum * deficit).clip(upper=cap)
+
+    if w.sum() <= 0:
+        return weights
+    return w / w.sum()
+
+
+def _target_weights_from_scores(
+    score_row: pd.Series,
+    top_n: int,
+    universe: pd.Index,
+    weighting_mode: str = "equal_weight",
+    score_temperature: float = 1.0,
+    max_single_weight: float = 1.0,
+) -> pd.Series:
+    """Convert cross-sectional score into long-only target portfolio weights."""
     weights = pd.Series(0.0, index=universe)
 
     clean = score_row.dropna()
@@ -21,9 +60,27 @@ def _target_weights_from_scores(score_row: pd.Series, top_n: int, universe: pd.I
         return weights
 
     n = min(top_n, len(clean))
-    selected = clean.nlargest(n).index
-    if len(selected) > 0:
-        weights.loc[selected] = 1.0 / len(selected)
+    selected = clean.nlargest(n)
+    if len(selected) == 0:
+        return weights
+
+    mode = str(weighting_mode).lower()
+    if mode == "equal_weight":
+        target = pd.Series(1.0 / len(selected), index=selected.index)
+    elif mode == "score_tilted":
+        temperature = max(float(score_temperature), 1e-6)
+        centered = (selected.astype(float) - float(selected.max())) / temperature
+        raw = np.exp(centered.to_numpy(dtype=float))
+        raw_sum = float(raw.sum())
+        if raw_sum <= 0.0:
+            target = pd.Series(1.0 / len(selected), index=selected.index)
+        else:
+            target = pd.Series(raw / raw_sum, index=selected.index)
+        target = _apply_weight_cap(target, max_single_weight=max_single_weight)
+    else:
+        raise ValueError(f"Unsupported weighting_mode: {weighting_mode}")
+
+    weights.loc[target.index] = target.values
     return weights
 
 
@@ -37,6 +94,9 @@ def run_backtest_from_scores(
     execution_prices: Optional[pd.DataFrame] = None,
     execution_volumes: Optional[pd.DataFrame] = None,
     liquidity_cost_model: Optional[LiquidityCostModel] = None,
+    weighting_mode: str = "equal_weight",
+    score_temperature: float = 1.0,
+    max_single_weight: float = 1.0,
 ) -> pd.DataFrame:
     """Run long-only strategy from score matrix without same-day look-ahead."""
     if scores.empty:
@@ -80,7 +140,14 @@ def run_backtest_from_scores(
         cost_rate = 0.0
 
         if i % rebalance_frequency == 0:
-            target = _target_weights_from_scores(scores.loc[date], top_n=top_n, universe=common_assets)
+            target = _target_weights_from_scores(
+                scores.loc[date],
+                top_n=top_n,
+                universe=common_assets,
+                weighting_mode=weighting_mode,
+                score_temperature=score_temperature,
+                max_single_weight=max_single_weight,
+            )
             trade = target - active_weights
             turnover = float(trade.abs().sum())
 

@@ -85,7 +85,9 @@ S_{i,t} = \sum_j w_j z^j_{i,t}
 At each rebalance date:
 1. Rank assets by \(S_{i,t}\)
 2. Select top `N`
-3. Assign equal weights to selected assets
+3. Assign weights with configurable position sizing:
+   - `equal_weight`: all selected assets get \(1/N\)
+   - `score_tilted`: softmax on selected scores, optionally capped by max single-name weight
 
 \[
 x_{i,t}=
@@ -94,6 +96,12 @@ x_{i,t}=
 0, & \text{otherwise}
 \end{cases}
 \]
+
+For `score_tilted`, with selected set \(\mathcal{U}_t\):
+\[
+\tilde{w}_{i,t} = \frac{\exp\left(S_{i,t}/\tau\right)}{\sum_{k\in\mathcal{U}_t}\exp\left(S_{k,t}/\tau\right)}
+\]
+where \(\tau\) is `score_temperature`, then optional cap normalization is applied.
 
 Timing is leakage-safe:
 - signal computed at date \(t\)
@@ -123,7 +131,7 @@ Daily OHLCV panel
     -> train-window IC per factor
     -> factor coefficients from mean IC
     -> composite score S(i,t)
-    -> top-N ranking and equal-weight portfolio
+    -> top-N ranking and position sizing (equal_weight or score_tilted)
     -> execute at close(t), active from t+1
     -> strategy returns vs benchmark returns
     -> attribution (alpha / beta / tracking error / IR)
