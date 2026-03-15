@@ -1,6 +1,6 @@
 # Quant Factor Mining Research Project
 
-A leakage-safe, reproducible multi-factor research framework for equity signals.
+A leakage-safe, reproducible multi-factor research framework for equity factor signals.
 
 This project is designed for rigorous, reproducible factor research:
 - strict time-ordering in research and backtest
