@@ -1,145 +1,182 @@
-# Quant Factor Mining Research Project
+# Quant Factor Mining
 
-A leakage-safe, reproducible multi-factor research framework for equity factor signals.
+A leakage-safe, walk-forward multi-factor research framework for equity signals. Built for rigorous, reproducible factor research with strict time-ordering, cost-aware backtesting, and holdout validation.
 
-This project is designed for rigorous, reproducible factor research:
-- strict time-ordering in research and backtest
-- offline reproducibility by default
-- run artifacts saved per experiment
+## Overview
 
-## What This Project Demonstrates
+This framework implements a complete factor research pipeline:
 
-1. Factor research with explicit no-lookahead controls.
-2. Walk-forward validation (train/test rolling windows).
-3. Cost-aware portfolio backtesting.
-4. Benchmark-relative attribution (alpha/beta/tracking error/information ratio).
-5. Bootstrap confidence intervals for attribution (alpha/IR).
-6. Nested selection with untouched holdout evaluation.
-7. Reproducible outputs (metrics, equity curve, config snapshot, report).
+```
+OHLCV Data → Factor Computation → Walk-Forward Validation → Portfolio Backtest → Attribution & Reporting
+```
 
-## Repository Structure
+**Three classic equity factors** are computed, cross-sectionally z-scored, and combined via information-coefficient (IC) weighting:
 
-```text
+| Factor | Formula | Default Params | Intuition |
+|--------|---------|---------------|-----------|
+| **Momentum** | `close(t−skip) / close(t−lookback−skip) − 1` | lookback=252d, skip=21d | Medium-term continuation |
+| **Mean Reversion** | `−(close(t) / close(t−lookback) − 1)` | lookback=21d | Short-term reversal |
+| **Low Volatility** | `−std(returns, window) × √252` | window=63d | Lower risk, higher score |
+
+**Key design principles:**
+- Signal at `t` is applied from `t+1` — no lookahead leakage
+- Walk-forward folds estimate weights on train data only
+- Holdout period is untouched during parameter selection
+- Deterministic synthetic data by default (seed=42) for full reproducibility
+
+## Project Structure
+
+```
 src/qfm/
-  data/         # contracts, preprocessing, snapshot/live fetch
-  factors/      # momentum, mean-reversion, low-volatility
-  labels/       # forward return labels
-  modeling/     # feature build, walk-forward, parameter search
-  portfolio/    # risk model + optimizer helpers
-  backtest/     # engine, costs, metrics
-  reporting/    # report generation
+├── data/           Data contracts, preprocessing, snapshot & live fetch
+├── factors/        Momentum, mean-reversion, low-volatility implementations
+├── labels/         Forward return label computation
+├── modeling/       Walk-forward engine, feature builder, parameter search, stability
+├── portfolio/      Risk model, mean-variance optimizer, constraints
+├── backtest/       Backtest engine, transaction costs, performance metrics, benchmarks
+└── reporting/      Tearsheet & table generation
 
 configs/
-  base.yaml
-  strategy/default.yaml
+├── base.yaml                 Data config (10 tickers, 2018–2024)
+└── strategy/
+    ├── default.yaml          Full strategy with nested parameter search
+    └── stability.yaml        Stability-first selection with holdout gate
 
 scripts/
-  refresh_data.py
-  run_walkforward.py
-  run_backtest.py
-  run_parameter_search.py
-  generate_report.py
+├── refresh_data.py           Generate synthetic or fetch live market data
+├── run_walkforward.py        Main walk-forward research pipeline
+├── run_backtest.py           Single full-period backtest
+├── run_parameter_search.py   Grid search over factor parameters
+└── generate_report.py        Generate markdown report from run artifacts
 
 tests/
-  unit/
-  integration/
+├── unit/                     17 test files covering contracts, factors, sizing, costs
+└── integration/              Full pipeline & holdout split tests
 
-artifacts/runs/<timestamp>/
-  config_snapshot.yaml
-  run_snapshot.json
-  fold_metrics.csv
-  equity_curve.parquet
-  metrics.json
-  holdout_metrics.json
-  holdout_equity_curve.parquet
-  nested_search_results.csv
-  stability_scoreboard.csv
-  stability_summary.json
-  selected_params.json
-  report.md
-
-legacy/
-  # archived pre-migration modules, scripts, and notes
+dashboard/                    Streamlit factor monitor (read-only)
+docs/                         Methodology, equations, assumptions, limitations
+artifacts/runs/<timestamp>/   Per-run output directory
 ```
 
 ## Quick Start
 
-### 1. Install
+### Install
 
 ```bash
-cd /Users/kevinwu/Coding/quant-factor-mining
+git clone https://github.com/Wrigggy/quant-factor-mining.git
+cd quant-factor-mining
 pip install -r requirements.txt
 ```
 
-### 2. Run Offline Snapshot Workflow (Recommended)
+### Run the Full Pipeline
 
 ```bash
-# Create or refresh local snapshot (synthetic deterministic data)
+# 1. Generate deterministic snapshot data
 python3 scripts/refresh_data.py --config configs/base.yaml
 
-# Run full walk-forward research
+# 2. Run walk-forward research with nested parameter search
 python3 scripts/run_walkforward.py --config configs/strategy/default.yaml
 
-# Generate report for latest run
+# 3. Generate human-readable report
 python3 scripts/generate_report.py
 ```
 
-### 3. Run Single Full-Period Backtest
+Results are saved to `artifacts/runs/<timestamp>/` with full config snapshots for reproducibility.
+
+### Other Workflows
 
 ```bash
+# Single full-period backtest
 python3 scripts/run_backtest.py --config configs/strategy/default.yaml
-```
 
-### 4. Optional Live Data Refresh
+# Standalone grid search
+python3 scripts/run_parameter_search.py --config configs/strategy/default.yaml
 
-```bash
+# Stability-first selection with holdout gating
+python3 scripts/run_walkforward.py --config configs/strategy/stability.yaml
+
+# Use live market data from Yahoo Finance
 python3 scripts/refresh_data.py --config configs/base.yaml --live
 python3 scripts/run_walkforward.py --config configs/strategy/default.yaml --live
 ```
 
-### 5. Parameter Search (Deterministic Grid)
+## Pipeline Details
 
-```bash
-python3 scripts/run_parameter_search.py --config configs/strategy/default.yaml
-```
+### Data
 
-### 6. Stability-First Selection (Holdout Gate)
+- **Default:** Synthetic OHLCV for 10 large-cap US equities (AAPL, MSFT, NVDA, AMZN, META, GOOGL, TSLA, JPM, XOM, JNJ) over 2018–2024
+- **Format:** MultiIndex `(date, ticker)` DataFrame with OHLCV columns, validated by a strict data contract
+- **Preprocessing:** Forward-fill gaps (max 3 days), remove invalid bars (high < low)
+- **Live mode:** Fetches real data via `yfinance` with `--live` flag
 
-```bash
-python3 scripts/run_walkforward.py --config configs/strategy/stability.yaml
-python3 scripts/run_parameter_search.py --config configs/strategy/stability.yaml --selection-mode stability_first
-```
+### Walk-Forward Validation
+
+Rolling train/test splits with configurable window sizes:
+- **Train window:** 504 days (~2 years) — used to estimate IC-based factor weights
+- **Test window:** 126 days (~6 months) — out-of-sample evaluation
+- **Step size:** Configurable (default = test size, or 21 days for granular analysis)
+
+Factor weights are the Spearman IC of each factor against forward returns, estimated on train data only. Composite score = IC-weighted sum of normalized factors.
+
+### Backtesting
+
+- **Position sizing:** Equal-weight or score-tilted (softmax with temperature + per-name weight cap)
+- **Rebalancing:** Every N days (default 21), with turnover tracking
+- **Cost models:** Linear bps or full liquidity model (commission + spread + slippage + market impact)
+- **Benchmark:** SPY when available, equal-weight fallback for offline mode
+
+### Evaluation Metrics
+
+| Metric | Description |
+|--------|-------------|
+| Sharpe Ratio | Risk-adjusted return (annualized) |
+| Alpha | Excess return vs. benchmark (annual) |
+| Beta | Sensitivity to benchmark |
+| Information Ratio | Active return / tracking error |
+| Max Drawdown | Worst peak-to-trough decline |
+| Bootstrap CIs | 95% confidence intervals for alpha and IR |
+
+### Holdout Gating
+
+An untouched holdout period (default: last 126 days) is reserved for final validation. The holdout gate checks minimum Sharpe and excess return thresholds — parameter sets that fail are flagged, preventing overfitted configs from passing selection.
+
+## Run Artifacts
+
+Each run produces a timestamped directory under `artifacts/runs/` containing:
+
+| File | Description |
+|------|-------------|
+| `metrics.json` | Aggregate metrics across all folds |
+| `fold_metrics.csv` | Per-fold performance breakdown |
+| `equity_curve.parquet` | Daily portfolio value time series |
+| `holdout_metrics.json` | Untouched holdout period evaluation |
+| `nested_search_results.csv` | Grid search results ranked by selection metric |
+| `selected_params.json` | Best parameter set from search |
+| `stability_summary.json` | Fold dispersion diagnostics |
+| `config_snapshot.yaml` | Full config used for the run |
+| `run_snapshot.json` | Run metadata (data summary, timestamp) |
+| `report.md` | Human-readable markdown report |
 
 ## Testing
 
-All tests are offline and deterministic.
+All tests are offline and deterministic:
 
 ```bash
 python3 -m pytest -q
 ```
 
-## Methodology Notes
+Coverage includes data contract validation, no-lookahead verification, factor index hygiene, position sizing, benchmark attribution, liquidity costs, walk-forward fold generation, and stability selection.
 
-- Signal at `t` is never applied to return at `t`.
-- Rebalance occurs at close of `t`; new weights are active from `t+1`.
-- Walk-forward folds estimate factor weights on train only, then evaluate on test.
-- Fold shift is configurable via `research.walkforward_step_size`.
-- Nested search ranks parameter sets on pre-holdout folds only.
-- Optional holdout window is untouched during parameter selection.
-- Position sizing can be equal-weight or score-tilted with per-name cap.
-- Attribution metrics can include bootstrap confidence intervals.
-- Cost model supports both linear bps and liquidity/slippage-aware mode.
-- Benchmark defaults to SPY when available, with equal-weight fallback for offline reliability.
+## Documentation
 
-See:
-- `docs/methodology.md`
-- `docs/model_equations.md`
-- `docs/assumptions.md`
-- `docs/limitations.md`
-- `docs/project_notes.md`
+- [`docs/methodology.md`](docs/methodology.md) — Core workflow and leakage controls
+- [`docs/model_equations.md`](docs/model_equations.md) — Full mathematical specification
+- [`docs/assumptions.md`](docs/assumptions.md) — Key assumptions
+- [`docs/limitations.md`](docs/limitations.md) — Known limitations
 
-## Scope and Limitations
+## Limitations
 
-- This is a research framework, not production trading software.
-- Default mode uses synthetic snapshot for reproducibility.
-- Cost model remains a proxy (not LOB simulation), even with liquidity/slippage extensions.
+- This is a **research framework**, not production trading software
+- Default mode uses synthetic data — factor premia are not embedded in the generator, so performance reflects noise characteristics rather than real market anomalies
+- Cost model is a proxy (not LOB simulation), even with liquidity extensions
+- Factor universe is limited to three classic signals; extending requires subclassing `BaseFactor`
