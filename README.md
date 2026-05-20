@@ -100,6 +100,38 @@ python3 scripts/refresh_data.py --config configs/base.yaml --live
 python3 scripts/run_walkforward.py --config configs/strategy/default.yaml --live
 ```
 
+### Demo Dashboard
+
+A Streamlit dashboard renders pre-computed factor weights, regime history, and
+the equity curve from `outputs/`. Use this for a quick visual walkthrough.
+
+```bash
+# (one-time) build dashboard artifacts under outputs/
+python3 generate_demo_data.py
+
+# launch the dashboard (defaults to http://localhost:8501)
+streamlit run dashboard/app.py
+```
+
+If `outputs/factor_monitor.db`, `outputs/weight_history.parquet`,
+`outputs/regime_history.parquet`, and `outputs/backtests/equity_curve.parquet`
+already exist, you can skip `generate_demo_data.py` and launch the dashboard
+directly.
+
+Approximate timings (synthetic data, 10 tickers, 2018–2024):
+
+| Step | Wall-clock |
+|------|------------|
+| `generate_demo_data.py` (rebuild artifacts) | ~20–60 s |
+| `streamlit run dashboard/app.py` (artifacts cached) | ~5–10 s to first paint |
+| `scripts/refresh_data.py` | a few seconds |
+| `scripts/run_walkforward.py` (nested search, default config) | a few minutes |
+| `scripts/generate_report.py` | seconds |
+
+Quick demo path (~1 min): launch the dashboard against cached artifacts.
+Full methodology demo (~3–5 min): `refresh_data` → `run_walkforward` →
+`generate_report`.
+
 ## Pipeline Details
 
 ### Data
